@@ -1,0 +1,44 @@
+{
+  "checkedAt": "2026-10-08T09:03:06.027Z",
+  "scope": "Unpacked MV3 extension, isolated Chromium profile, real supported-service responses; third-party ads/media blocked; no file download; auto-open off.",
+  "outcome": "PASS",
+  "result": {
+    "code": null,
+    "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+    "phase": "resolved",
+    "steps": [
+      {
+        "label": "Đọc URL mà trang 1short đã nhận",
+        "url": "1shortlink.com/link-encrypted/…"
+      },
+      {
+        "label": "Theo chuyển hướng 1short",
+        "url": "1shortlink.com/redirect-link"
+      },
+      {
+        "label": "Đọc URL đích từ EZ4Short",
+        "url": "ez4short.com/st"
+      },
+      {
+        "label": "Đã tìm địa chỉ đích",
+        "url": "vexfile.com/download/2fezKvg9vP"
+      }
+    ],
+    "updatedAt": 1791450185192,
+    "url": "https://vexfile.com/download/2fezKvg9vP"
+  },
+  "exchanges": [
+    {
+      "method": "GET",
+      "request": "1shortlink.com/link-encrypted/…",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "request": "1shortlink.com/get-link-download",
+      "status": 200
+    }
+  ],
+  "blockedRequests": 13,
+  "pageErrors": 0
+}

@@ -1,0 +1,16 @@
+{
+  "name": "adskip-local",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local userscript and Chromium extension for inspected 1shortlink and EZ4Short flows.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "test": "node --test tests/core.test.cjs tests/resolver.test.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "test:extension": "node tests/extension.cjs",
+    "test:live": "node tests/live.cjs",
+    "test:live-extension": "node tests/live-extension.cjs"
+  },
+  "devDependencies": { "playwright": "1.62.1" }
+}

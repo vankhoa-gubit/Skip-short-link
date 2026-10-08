@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AdSkip</title><link rel="stylesheet" href="popup.css">
+  <script src="core.js" defer></script><script src="popup.js" defer></script>
+</head>
+<body>
+  <header><h1>AdSkip</h1><span id="current-host">Tab đang mở</span></header>
+  <main>
+    <p class="status" id="status" role="status" aria-live="polite">Đang đọc trạng thái…</p>
+    <p class="message" id="message">Mở link 1short hoặc EZ4Short để bắt đầu.</p>
+    <a id="destination" class="destination hidden" target="_blank" rel="noopener noreferrer"></a>
+    <div class="actions">
+      <button id="open" class="primary hidden" type="button">Mở trang đích</button>
+      <button id="copy" class="hidden" type="button">Sao chép</button>
+      <button id="resolve" type="button">Phân tích tab này</button>
+      <button id="stop" class="hidden" type="button">Dừng</button>
+    </div>
+    <label class="preference"><input id="auto-open" type="checkbox">Mở trang đích khi tìm được</label>
+    <details><summary>Các bước đã xử lý</summary><ol id="steps"></ol></details>
+    <p id="notice" class="notice" role="status"></p>
+  </main>
+  <footer>Địa chỉ tìm được có thể hết hạn. Mở trang đích để kiểm tra file.</footer>
+</body>
+</html>
