@@ -1,5 +1,5 @@
 "use strict";
-importScripts("core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js");
+importScripts("core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js", "library.js", "batch.js");
 const Core = globalThis.AdSkipCore;
 const Ads = globalThis.AdSkipAds;
 const filters = globalThis.AdSkipAdSettings.create(chrome.storage.local, chrome.declarativeNetRequest);
@@ -20,6 +20,49 @@ const writes = new Map();
 const versions = new Map();
 const tabUrls = new Map();
 const request = globalThis.AdSkipFetch.create();
+const library = globalThis.AdSkipLibrary.create(chrome.storage.local);
+const batch = globalThis.AdSkipBatch.create({
+  storage: chrome.storage.session, getSettings: () => library.getSettings(), onResult: (url, result) => library.record(url, result),
+  async resolve(entry, config) {
+    const start = entry.startUrl || entry.sourceUrl;
+    const hints = Number.isInteger(entry.readTabId) ? await readPageHints(entry.readTabId, start, config.signal) : {};
+    return globalThis.AdSkipResolver.resolve(start, { ...config, ...hints, request });
+  }
+});
+async function appSnapshot() {
+  const config = await preferences();
+  return { batch: await batch.get(), history: await library.getHistory(), settings: await library.getSettings(), adFilters: config.adFilters, adFilterError: config.adFilterError };
+}
+async function appMessage(message) {
+  if (message.type === "ADSKIP_APP_GET") return appSnapshot();
+  if (message.type === "ADSKIP_APP_SETTINGS") return { settings: await library.setSettings(message.settings) };
+  if (message.type === "ADSKIP_APP_HISTORY") return { history: await library.getHistory() };
+  if (message.type === "ADSKIP_APP_HISTORY_REMOVE") return { history: await library.removeHistory(message.id) };
+  if (message.type === "ADSKIP_APP_HISTORY_CLEAR") return { history: await library.clearHistory() };
+  if (message.type === "ADSKIP_APP_HISTORY_OPEN") {
+    const entry = (await library.getHistory()).find(({ id }) => id === message.id);
+    if (!entry?.url || !Core.isFileHost(entry.url)) throw new Core.AdSkipError("NO_DESTINATION", "Kết quả này không còn URL đích để mở.");
+    await chrome.tabs.create({ url: Core.urlOf(entry.url).href }); return { ok: true };
+  }
+  if (message.type === "ADSKIP_APP_BATCH_START") return { batch: await batch.start(message.text) };
+  if (message.type === "ADSKIP_APP_BATCH_STOP") return { batch: await batch.stop() };
+  if (message.type === "ADSKIP_APP_BATCH_RESUME") return { batch: await batch.resume() };
+  if (message.type === "ADSKIP_APP_BATCH_RETRY") return { batch: await batch.retry(message.id) };
+  if (message.type === "ADSKIP_APP_BATCH_OPEN" || message.type === "ADSKIP_APP_BATCH_CONTINUE") {
+    const entry = (await batch.get()).entries.find(({ id }) => id === message.id);
+    if (!entry?.url || !["resolved", "manual"].includes(entry.phase)) throw new Core.AdSkipError("NO_DESTINATION", "Chưa có URL để mở cho link này.");
+    if (message.type === "ADSKIP_APP_BATCH_OPEN") {
+      const tab = await chrome.tabs.create({ url: Core.urlOf(entry.url).href });
+      if (Core.canContinue(entry)) return { batch: await batch.attachTab(entry.id, tab.id) };
+      return { ok: true };
+    }
+    if (!Core.canContinue(entry)) throw new Core.AdSkipError("NO_CONTINUATION", "Link này không có bước để tiếp tục.");
+    const tab = Number.isInteger(entry.manualTabId) ? await chrome.tabs.get(entry.manualTabId).catch(() => null) : null;
+    if (!tab?.url) throw new Core.AdSkipError("NO_MANUAL_TAB", "Chọn Mở bước, hoàn tất thao tác trong tab vừa mở rồi Tiếp tục.");
+    return { batch: await batch.retry(entry.id, { startUrl: Core.inputUrl(tab.url), readTabId: tab.id }) };
+  }
+  throw new Core.AdSkipError("UNKNOWN_ACTION", "Thao tác không được hỗ trợ.");
+}
 const stateKey = (target) => target === INPUT ? INPUT : "tab:" + target;
 const idle = () => ({ phase: "idle", message: "Dán link hoặc phân tích tab đang mở để bắt đầu.", steps: [] });
 
@@ -116,8 +159,12 @@ function run(target, url, hints = {}, metadata = {}) {
       });
       result = { ...result, sourceUrl, manualTabId: metadata.manualTabId };
       if (jobs.get(target) === job) {
-        await publish(target, result, job);
-        await maybeOpen(target, result, start).catch(() => {});
+        const saved = await publish(target, result, job);
+        if (saved && jobs.get(target) === job) {
+          try { await library.record(sourceUrl, result); }
+          catch (error) { result.historyWarning = error.message || "Chưa lưu được lịch sử."; if (jobs.get(target) === job) await publish(target, result, job); }
+        }
+        if (jobs.get(target) === job) await maybeOpen(target, result, start).catch(() => {});
       }
     } catch {
       result = { phase: controller.signal.aborted ? "stopped" : "error", code: controller.signal.aborted ? "CANCELLED" : "STATE_ERROR", sourceUrl, steps: [], message: controller.signal.aborted ? "Đã dừng xử lý." : "Không đọc được phiên xử lý. Chọn Tìm lại." };
@@ -131,6 +178,19 @@ function run(target, url, hints = {}, metadata = {}) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !message || typeof message.type !== "string") return;
   const fromExtensionPage = typeof sender.url === "string" && sender.url.startsWith(chrome.runtime.getURL(""));
+  if (message.type.startsWith("ADSKIP_APP_")) {
+    if (!fromExtensionPage) { sendResponse({ error: "Mở trang quản lý AdSkip để dùng lịch sử và hàng đợi." }); return; }
+    appMessage(message).then(sendResponse).catch((error) => sendResponse({ error: error instanceof Core.AdSkipError ? error.message : "Chưa đọc hoặc lưu được dữ liệu AdSkip. Thử lại.", code: error.code || "APP_ERROR" }));
+    return true;
+  }
+  if (message.type === "ADSKIP_DASHBOARD") {
+    let permitted = fromExtensionPage;
+    try { permitted ||= Core.SERVICE_HOSTS.has(Core.urlOf(sender.url || "").hostname) && (!sender.frameId || sender.frameId === 0); } catch { /* Invalid sender. */ }
+    if (!permitted) { sendResponse({ error: "Mở AdSkip từ popup hoặc trang được hỗ trợ." }); return; }
+    const section = ["batch", "history", "settings"].includes(message.section) ? message.section : "batch";
+    chrome.storage.session.set({ dashboardSection: section }).then(() => chrome.runtime.openOptionsPage()).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ error: "Chưa mở được trang quản lý. Mở Cài đặt tiện ích trong trang quản lý extension." }));
+    return true;
+  }
   if (message.type === "ADSKIP_AD_FILTER") {
     let permitted = fromExtensionPage;
     try { permitted ||= Core.serviceOf(sender.url || "") === message.service && (!sender.frameId || sender.frameId === 0); } catch { /* Invalid sender. */ }
@@ -215,7 +275,7 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   const version = stopJob(details.tabId);
   const state = { phase: "resolved", message: "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.", sourceUrl: details.url, url: target, code: null,
     steps: [{ label: "Nhận URL trước khi EZ4Short chuyển bước", url: Core.describeUrl(details.url) }, { label: "Đã tìm địa chỉ đích", url: Core.describeUrl(target) }] };
-  void publish(details.tabId, state, undefined, version).then((value) => value && maybeOpen(details.tabId, value, details.url)).catch(() => {});
+  void publish(details.tabId, state, undefined, version).then(async (value) => { if (value && (versions.get(details.tabId) || 0) === version) { await library.record(details.url, value).catch(() => {}); if ((versions.get(details.tabId) || 0) === version) await maybeOpen(details.tabId, value, details.url); } }).catch(() => {});
 }, { url: [{ hostEquals: "ez4short.com" }, { hostEquals: "www.ez4short.com" }] });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (!change.url && change.status !== "loading") return;

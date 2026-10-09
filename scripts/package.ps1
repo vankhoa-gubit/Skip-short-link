@@ -9,7 +9,7 @@ foreach ($adskipFolder in @('extension', 'src', 'scripts', 'tests', 'docs')) {
         -not $_.FullName.StartsWith($adskipGeneratedRoot, [System.StringComparison]::OrdinalIgnoreCase)
     }
 }
-foreach ($adskipFile in @('README.md', 'HUONG_DAN_CAI_DAT.md', 'package.json', 'package-lock.json', '.gitignore', 'dist\adskip.user.js')) {
+foreach ($adskipFile in @('README.md', 'CHANGELOG.md', 'HUONG_DAN_CAI_DAT.md', 'package.json', 'package-lock.json', '.gitignore', 'dist\adskip.user.js')) {
     $adskipFiles += Get-Item -LiteralPath (Join-Path $adskipRoot $adskipFile)
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem

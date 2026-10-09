@@ -1,0 +1,9 @@
+{
+  "recordedAt": "2026-10-09T14:04:09.213Z",
+  "command": "npm test",
+  "outcome": "PASS",
+  "tests": 79,
+  "pass": 79,
+  "fail": 0,
+  "scope": "Node unit/contract tests: core 18, resolver 17, background 19, transport 4, ads 7, library 6, batch 8"
+}

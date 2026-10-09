@@ -4,6 +4,7 @@ const path = require("node:path");
 const assert = require("node:assert/strict");
 const { playwright, browserOptions } = require("./helpers.cjs");
 const { fixtureServer, bodyOf } = require("./https-fixture.cjs");
+const { managerFixture, managerChecks, st: managerSt } = require("./manager-checks.cjs");
 const root = path.resolve(__dirname, "..");
 const input = "https://1shortlink.com/link-encrypted/tamper-fixture";
 const next = "https://1shortlink.com/redirect-link?link=tamper-fixture";
@@ -18,6 +19,7 @@ async function panelStatus(page, title) { await page.locator("#adskip-widget").g
   const bundle = fs.readFileSync(path.join(root, "dist/adskip.user.js"), "utf8");
   const exchanges = []; const checks = []; const errors = [];
   const fixture = await fixtureServer(async (req, res, url) => {
+    if (managerFixture(req, res, url, exchanges)) return;
     exchanges.push({ host: url.hostname, method: req.method, path: url.pathname });
     const reply = (status, body, headers = {}) => { res.writeHead(status, { "content-type": "text/html;charset=utf-8", ...headers }); res.end(body); };
     if (url.pathname === "/get-link-download") {
@@ -41,6 +43,7 @@ async function panelStatus(page, title) { await page.locator("#adskip-widget").g
   });
   const report = { checkedAt: new Date().toISOString(), mode: "Official Tampermonkey installed unpacked in isolated Chromium; bundle saved through its editor; real GM APIs and local HTTPS fixture server; test certificate and browser-only host mapping", outcome: "FAIL", checks, errors, exchanges };
   try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const worker = context.serviceWorkers()[0] || await context.waitForEvent("serviceworker");
     const id = worker.url().split("/")[2];
     const options = await context.newPage();
@@ -111,6 +114,28 @@ async function panelStatus(page, title) { await page.locator("#adskip-widget").g
     await locked.locator("#adskip-widget").getByRole("button", { name: "Tiếp tục kiểm tra", exact: true }).click(); await panelStatus(locked, "Đã tìm được trang đích");
     assert.equal(await locked.locator("#adskip-widget .destination").getAttribute("href"), target);
     checks.push("Real installed userscript keeps a locked EZ4 alias manual and resolves only after user action and fresh DOM continuation");
+    await locked.locator("#adskip-widget").getByRole("button", { name: "Quản lý link", exact: true }).click();
+    await managerChecks(locked, context, { name: "tampermonkey-v1", checks, exchanges });
+    const ui = locked.locator("#adskip-manager");
+    await ui.getByRole("tab", { name: "Lịch sử", exact: true }).click(); await ui.locator("#history-clear").click();
+    await ui.locator("#history-count").filter({ hasText: "0/0" }).waitFor();
+    const parallelA = await context.newPage(); const parallelB = await context.newPage();
+    await Promise.all([visit(parallelA, managerSt.replace("private-fixture", "parallel-a")), visit(parallelB, managerSt.replace("private-fixture", "parallel-b"))]);
+    await Promise.all([panelStatus(parallelA, "Đã tìm được trang đích"), panelStatus(parallelB, "Đã tìm được trang đích")]);
+    await ui.locator("#history-count").filter({ hasText: "2/2" }).waitFor();
+    checks.push("Concurrent completions from two real GM sandboxes both persist and refresh the open manager through value-change listeners");
+    await ui.getByRole("tab", { name: "Nhiều link", exact: true }).click(); await ui.locator("#close").click();
+    await locked.locator("#adskip-widget").getByRole("button", { name: "Quản lý link", exact: true }).click();
+    assert.equal(await ui.locator("#batch-list .resolved").count(), 1);
+    await locked.reload(); await panelStatus(locked, "Cần thao tác trên trang");
+    await locked.locator("#adskip-widget").getByRole("button", { name: "Quản lý link", exact: true }).click();
+    await ui.locator("#batch-progress").filter({ hasText: "Chưa có hàng đợi" }).waitFor();
+    await ui.getByRole("tab", { name: "Cài đặt", exact: true }).click();
+    assert.equal(await ui.locator("#setting-limit").inputValue(), "25"); assert.equal(await ui.locator("#setting-delay").inputValue(), "500");
+    await ui.getByRole("tab", { name: "Lịch sử", exact: true }).click(); assert.ok(await ui.locator("#history-list .row").count() >= 2);
+    checks.push("Close/reopen retains the userscript queue in its page; reload resets the queue while GM history/settings persist");
+    await ui.locator("#history-clear").click(); await ui.locator("#history-count").filter({ hasText: "0/0" }).waitFor();
+    checks.push("Clear history deletes real GM sharded records across tabs");
     assert.deepEqual(errors, []);
     report.browser = context.browser().version(); report.managerVersion = JSON.parse(fs.readFileSync(path.join(manager, "manifest.json"), "utf8")).version; report.outcome = "PASS";
     report.profile = path.relative(root, profile);

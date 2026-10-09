@@ -1,0 +1,95 @@
+{
+  "checkedAt": "2026-10-09T13:58:59.704Z",
+  "scope": "Unpacked MV3 extension, isolated Chromium profile, real page responses with shipped service-scoped native ad rules; no Playwright routing, hostname mapping or certificate override; auto-open off; downloads disabled.",
+  "outcome": "PASS",
+  "browser": "151.0.7922.34",
+  "checks": [
+    "Supplied live URL navigates through supported services and resolves a file-host address without auto-opening it",
+    "Pasting the supplied URL in the actual popup produces the same destination and preserves the unrelated tab",
+    "Shipped native ad rules are enabled during this live run; no Playwright ad/media interception is used"
+  ],
+  "result": {
+    "code": null,
+    "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+    "phase": "resolved",
+    "source": "tab",
+    "sourceUrl": "1shortlink.com/link-encrypted/…",
+    "steps": [
+      {
+        "label": "Đọc URL mà trang 1short đã nhận",
+        "url": "1shortlink.com/link-encrypted/…"
+      },
+      {
+        "label": "Theo chuyển hướng 1short",
+        "url": "1shortlink.com/redirect-link"
+      },
+      {
+        "label": "Đọc URL đích từ EZ4Short",
+        "url": "ez4short.com/st"
+      },
+      {
+        "label": "Đã tìm địa chỉ đích",
+        "url": "gofile.io/d/PKvjP6Yd"
+      }
+    ],
+    "updatedAt": 1791554338560,
+    "url": "https://gofile.io/d/PKvjP6Yd"
+  },
+  "inputResult": {
+    "code": null,
+    "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+    "phase": "resolved",
+    "source": "input",
+    "sourceUrl": "1shortlink.com/api/v1/full-pages",
+    "steps": [
+      {
+        "label": "Đọc URL đích từ link full-pages",
+        "url": "1shortlink.com/api/v1/full-pages"
+      },
+      {
+        "label": "Đã tìm địa chỉ đích",
+        "url": "gofile.io/d/PKvjP6Yd"
+      }
+    ],
+    "updatedAt": 1791554339349,
+    "url": "https://gofile.io/d/PKvjP6Yd"
+  },
+  "exchanges": [
+    {
+      "method": "GET",
+      "request": "1shortlink.com/api/v1/full-pages",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "request": "1shortlink.com/link-encrypted/…",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "request": "1shortlink.com/get-link-download",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "request": "www.google-analytics.com/g/collect",
+      "status": 204
+    }
+  ],
+  "enabledRulesets": [
+    "1short",
+    "ez4short",
+    "tech8s"
+  ],
+  "blockedResources": [
+    {
+      "host": "3nbf4.com",
+      "resourceType": "script"
+    },
+    {
+      "host": "forfrogadiertor.com",
+      "resourceType": "script"
+    }
+  ],
+  "pageErrors": 0
+}

@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "exportedAt": "2026-10-09T13:58:53.542Z",
+  "results": [
+    {
+      "sourceLabel": "1shortlink.com/api/v1/full-pages",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download"
+    },
+    {
+      "sourceLabel": "ez4short.com/st",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download"
+    },
+    {
+      "sourceLabel": "ez4short.com/v1-final",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download"
+    },
+    {
+      "sourceLabel": "ez4short.com/v1-manual",
+      "phase": "manual",
+      "message": "Trang EZ4Short chưa cung cấp URL đích trên nút lấy link. Hoàn tất thao tác trên trang rồi chọn Tiếp tục kiểm tra.",
+      "code": "EZ4_ALIAS",
+      "url": null
+    },
+    {
+      "sourceLabel": "ez4short.com/v1-expired",
+      "phase": "error",
+      "message": "Link không còn tồn tại hoặc đã hết hạn.",
+      "code": "EXPIRED_LINK",
+      "url": null
+    },
+    {
+      "sourceLabel": "Dòng 6: link không hợp lệ",
+      "phase": "error",
+      "message": "Không đọc được địa chỉ này.",
+      "code": "INVALID_URL",
+      "url": null
+    }
+  ]
+}

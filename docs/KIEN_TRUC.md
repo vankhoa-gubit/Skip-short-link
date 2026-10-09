@@ -1,4 +1,4 @@
-# Kiến trúc AdSkip 0.3.0
+# Kiến trúc AdSkip 1.0.0
 
 ## Các luồng hỗ trợ
 
@@ -31,10 +31,14 @@ Payload mã hóa của 1short được gửi như dữ liệu opaque tới endpo
 | `src/ad-settings.js` | Xếp hàng thay đổi bộ lọc, áp dụng DNR và lưu tùy chọn, rollback khi lưu thất bại, đồng bộ sau nâng cấp |
 | `src/fetch-transport.js` | Transport service worker, timeout, abort, endpoint/body limit |
 | `src/panel.js` | Widget Shadow DOM, lấy dữ liệu trang, chờ DOM có thể hủy, Tiếp tục kiểm tra |
+| `src/library.js` | Chuẩn hóa cài đặt/lịch sử, xếp hàng ghi, giới hạn lưu, che link nguồn, backend lịch sử mở rộng cho GM |
+| `src/batch.js` | Parse tối đa 50 dòng, dedup, hàng đợi serial, Dừng/Chạy tiếp/retry, epoch/revision, phục hồi phiên bị ngắt và tạm dừng 429 |
+| `src/workspace.js` | UI chung trong Shadow DOM: Nhiều link, Lịch sử, Cài đặt, clipboard/JSON, bàn phím và responsive |
 | `src/userscript-entry.js` | GM transport, tùy chọn, clipboard, dữ liệu mới khi tiếp tục và bảo vệ tự mở |
 | `extension/background.js` | Job tab và input, thứ tự ghi, phiên bản job, lưu trạng thái, đọc DOM qua content script, điều hướng |
 | `extension/content.js` | Widget, trả lời `ADSKIP_PAGE_HINTS` bằng dữ liệu trang hiện tại |
 | `extension/popup.js` | Form URL, validation, nguồn kết quả, khôi phục input, tiếp tục/dừng/mở/sao chép |
+| `extension/options.js` | Kết nối manager với worker, clipboard và thông báo storage; options mở thành tab |
 | `scripts/build.cjs` | Kiểm tra cú pháp, bundle userscript, đồng bộ module dùng chung và sinh ba ruleset vào extension |
 
 ## Quy tắc URL và request
@@ -56,7 +60,15 @@ Trên 1short và alias EZ4Short, widget chờ DOM và có thể đợi tối đa
 
 Job popup link đã dán tách khỏi job tab. Khi mở bước thủ công bằng popup, `manualTabId` gắn job với tab được mở rõ ràng. Tiếp tục chỉ đọc tab đó. Không dùng tùy tiện dữ liệu của tab đang hoạt động khác.
 
-`storage.session` lưu `input`, `tab:<id>` và nguồn popup. `storage.local` lưu `autoOpen` và `adFilters` với ba giá trị boolean riêng. Link và kết quả được khôi phục khi mở lại popup. Kết quả quá một giờ bị loại khi truy cập lại; đây là hết hạn khi đọc, không phải bộ hẹn giờ xóa nền.
+`storage.session` lưu `input`, `tab:<id>`, nguồn popup, `batch` và `dashboardSection`. `storage.local` lưu `autoOpen`, `adFilters`, `appSettings` và `history`. Link/kết quả riêng của popup quá một giờ bị loại khi đọc; batch thuộc phiên trình duyệt, lịch sử được giới hạn theo số bản ghi.
+
+Batch xử lý một link mỗi lần, mặc định chờ 1000 ms giữa các link (500/1000/2000 ms). Epoch + AbortController loại kết quả cũ khi Dừng; revision tăng trên mỗi lần ghi để UI bỏ snapshot cũ. Nếu worker không còn job sống, các dòng queued/resolving chuyển stopped với `SESSION_INTERRUPTED`; dòng đã xong được giữ. 429 chuyển hàng đợi paused; Resume chỉ chạy các dòng còn chờ. Retry chỉ chạy dòng được chọn. Batch không tự điều hướng.
+
+Manager extension dùng các message `ADSKIP_APP_*`; chỉ trang thuộc extension được đọc/ghi hàng đợi, lịch sử và cài đặt. Content script frame chính trên domain hỗ trợ chỉ được mở manager. Bước thủ công của batch gắn `manualTabId` với tab mở bằng nút; Continue đọc DOM mới của đúng tab.
+
+Userscript mở UI chung trong native dialog. Batch dùng adapter bộ nhớ per-page; đóng/tải lại trang kết thúc hàng đợi. GM settings giữ key `autoOpen`/`adFilters` cũ và key `adskip:appSettings` mới. Mỗi lịch sử dùng key `adskip:history:<uuid>`; GM_listValues/GM_deleteValue đọc/xóa/prune từng record. Ghi theo key riêng tránh ghi đè array giữa hai tab. Key `adskip:historyRevision` và GM value listeners cập nhật manager ở tab khác. Không có giao dịch toàn cục GM; Clear/prune có thể chạy đồng thời với các tab đang xử lý. Manager userscript không đọc DOM ở tab khác; người dùng tiếp tục bằng widget trong tab được mở.
+
+Lịch sử mặc định bật, giữ 100 (25/100/250) record. Chỉ ghi kết quả resolved/manual/error; kết quả stopped và dòng nhập sai không được ghi. Nhãn nguồn dùng `Core.describeUrl`; link gốc/query/API key/ciphertext không thuộc record. Resolved giữ URL file host đầy đủ; manual/error có url null. JSON xuất áp dụng cùng quy tắc. Lỗi ghi lịch sử không thay kết quả tìm đích; hiển thị cảnh báo để người dùng xử lý.
 
 Các lần ghi được xếp hàng theo job và kiểm tra phiên bản. Dừng/job mới/navigation vô hiệu hóa kết quả lượt cũ. Khi worker khởi động lại và còn trạng thái resolving nhưng không còn job sống, chuyển ngay sang stopped với `SESSION_INTERRUPTED`, lưu lại và cho Tìm lại. Không tự khôi phục request bị ngắt.
 
@@ -82,7 +94,7 @@ Ba static ruleset mặc định bật. Thay đổi được xếp hàng, áp d�
 
 Bộ lọc DOM chung chỉ đánh dấu iframe/ảnh tới các domain quảng cáo và `ins.adsbygoogle`, quan sát phần tử mới/thay đổi `src` hoặc class. Khi tắt hoặc phần tử không còn khớp, khôi phục marker trước đó; không sửa CSS/hidden gốc của trang. Userscript chỉ có phần lọc DOM, request vẫn xảy ra. Extension có cả DNR và phần lọc DOM. Cache `extension/_metadata` do Chromium sinh được bỏ khỏi Git và ZIP.
 
-URL đầy đủ, kể cả API key/ciphertext/query có chữ ký, được giữ cục bộ để mở, sao chép và Tìm lại. Trace che query/payload. Profile, input thật, TLS key và gói Tampermonkey nằm trong `work/` và không thuộc ZIP. Chỉ ảnh/JSON đã kiểm tra mới được đưa vào `docs/`.
+URL nguồn đầy đủ, kể cả API key/ciphertext, chỉ được giữ trong phiên extension/bộ nhớ trang userscript để Tìm lại. URL đích có chữ ký được giữ đầy đủ trong lịch sử cục bộ/file xuất để mở/sao chép đúng. Trace che query/payload. Profile, input thật, TLS key và gói Tampermonkey nằm trong `work/` và không thuộc ZIP. Chỉ ảnh/JSON đã kiểm tra mới được đưa vào `docs/`.
 
 ## Kiểm thử và mở rộng
 

@@ -84,6 +84,7 @@ node("copy").addEventListener("click", async () => {
   catch { notice("Chưa sao chép được. Mở link và sao chép từ thanh địa chỉ."); }
 });
 node("auto-open").addEventListener("change", async () => { const reply = await send("ADSKIP_PREFERENCE", { autoOpen: node("auto-open").checked }); if (reply.error) notice(reply.error); });
+for (const [id, section] of [["manage", "batch"], ["settings", "settings"]]) node(id).addEventListener("click", async () => { const reply = await send("ADSKIP_DASHBOARD", { section }); if (reply.error) notice(reply.error); });
 function renderFilters(preferences = {}) {
   const enabled = Ads.normalize(preferences.adFilters);
   for (const checkbox of document.querySelectorAll("[data-ad-service]")) checkbox.checked = enabled[checkbox.dataset.adService];

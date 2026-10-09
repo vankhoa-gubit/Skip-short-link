@@ -1,0 +1,240 @@
+{
+  "checkedAt": "2026-10-09T13:58:51.669Z",
+  "mode": "Official Tampermonkey installed unpacked in isolated Chromium; bundle saved through its editor; real GM APIs and local HTTPS fixture server; test certificate and browser-only host mapping",
+  "outcome": "PASS",
+  "checks": [
+    "Bundle installed through Tampermonkey's real editor and native userscript permission",
+    "Real GM_xmlhttpRequest POST includes current CSRF and session cookie, follows redirect and preserves signed destination",
+    "Installed Tampermonkey widget fits 390 × 844",
+    "Installed userscript continues with new DOM after manual action",
+    "Installed userscript decodes full-pages and keeps the fragment without a GM request",
+    "Real userscript reads enabled EZ4 alias control with signed query/fragment; cosmetic filtering hides advertising frames/slots but leaves verification visible and does not block network requests",
+    "Real GM storage persists the per-service choice; turning it off restores elements and GM value-change listeners synchronize another open tab",
+    "Mutation filtering hides a newly inserted ad frame and restores it when its source changes to a verification resource",
+    "Real installed userscript captures an EZ4 alias HTTP redirect into /st",
+    "Real installed userscript keeps a locked EZ4 alias manual and resolves only after user action and fresh DOM continuation",
+    "tampermonkey-v1: settings save delay/retention/history without changing ad preferences",
+    "tampermonkey-v1: mixed batch deduplicates, keeps signed destinations, reports manual/expired/invalid rows, requests serially with 500ms delay and opens no tabs",
+    "tampermonkey-v1: actual clipboard contains complete destination queries and fragments",
+    "tampermonkey-v1: downloaded JSON preserves full recognized targets and excludes source payloads/manual URLs",
+    "tampermonkey-v1: 51-line input is rejected without replacing completed results",
+    "tampermonkey-v1: explicit history Open creates a real destination tab with the complete URL",
+    "tampermonkey-v1: history search/status filter, individual deletion and actual JSON download work",
+    "tampermonkey-v1: history off prevents new records while retaining existing history",
+    "tampermonkey-v1: Stop aborts real in-flight transport, ignores late response and prevents next request; Resume completes remaining rows",
+    "tampermonkey-v1: HTTP 429 pauses pending rows; Resume does not retry the limited row; per-row retry preserves other results",
+    "tampermonkey-v1: manager fits 1440/390px viewports and supports keyboard tab navigation",
+    "Concurrent completions from two real GM sandboxes both persist and refresh the open manager through value-change listeners",
+    "Close/reopen retains the userscript queue in its page; reload resets the queue while GM history/settings persist",
+    "Clear history deletes real GM sharded records across tabs"
+  ],
+  "errors": [],
+  "exchanges": [
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/link-encrypted/tamper-fixture"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "POST",
+      "path": "/get-link-download"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/redirect-link"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/link-encrypted/manual"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/api/v1/full-pages"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-final"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-final"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-redirect"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-manual"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-final",
+      "run": null,
+      "method": "GET",
+      "at": 1791554361566
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-manual",
+      "run": null,
+      "method": "GET",
+      "at": 1791554362264
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-expired",
+      "run": null,
+      "method": "GET",
+      "at": 1791554362963
+    },
+    {
+      "host": "gofile.io",
+      "method": "GET",
+      "path": "/d/v1-fixture"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-slow",
+      "run": "tampermonkey-v1-stop",
+      "method": "GET",
+      "at": 1791554365645
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-slow",
+      "run": "tampermonkey-v1-stop",
+      "method": "GET",
+      "at": 1791554368123
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-final",
+      "run": "tampermonkey-v1-stop",
+      "method": "GET",
+      "at": 1791554370824
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-rate",
+      "run": "tampermonkey-v1",
+      "method": "GET",
+      "at": 1791554371089
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-manual"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    }
+  ],
+  "browser": "151.0.7922.34",
+  "managerVersion": "5.4.1"
+}

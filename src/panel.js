@@ -91,6 +91,11 @@
     const steps = element("ol", undefined, "steps"); details.append(summary, steps);
     const toast = element("p", "", "toast"); toast.setAttribute("role", "status");
     body.append(status, message, guidance, destination, actions, preference, adPreference, adHelp, details, toast);
+    if (handlers.onManager) {
+      const manage = element("button", "Quản lý link", "button"); manage.type = "button"; manage.style.cssText = "margin-top:12px;font-size:12px";
+      manage.addEventListener("click", () => { Promise.resolve(handlers.onManager()).catch(() => { toast.textContent = "Chưa mở được trang quản lý. Thử lại."; }); });
+      body.append(manage);
+    }
     panel.append(header, body);
     const launcher = element("button", "AdSkip", "launcher hidden");
     launcher.type = "button"; launcher.setAttribute("aria-label", "Mở bảng AdSkip");
@@ -124,6 +129,7 @@
       panel.className = "panel " + (next.phase || "idle") + (minimized ? " hidden" : "");
       statusText.textContent = labels[next.phase] || labels.idle;
       message.textContent = next.message || "Đang đọc dữ liệu trang…";
+      if (next.historyWarning) toast.textContent = next.historyWarning;
       let safeUrl = null;
       try { if (next.url && next.phase !== "resolving") safeUrl = Core.urlOf(next.url).href; } catch { /* No unsafe hyperlink. */ }
       destination.classList.toggle("hidden", !safeUrl);

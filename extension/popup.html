@@ -6,7 +6,7 @@
   <script src="core.js" defer></script><script src="ads.js" defer></script><script src="popup.js" defer></script>
 </head>
 <body>
-  <header><div><h1>AdSkip</h1><span class="version">0.3.0</span></div><span id="current-host">Tab đang mở</span></header>
+  <header><div><h1>AdSkip</h1><span class="version">1.0.0</span></div><span id="current-host">Tab đang mở</span></header>
   <main>
     <form id="link-form" novalidate>
       <label for="link-input">Link cần tìm trang đích</label>
@@ -42,6 +42,7 @@
     </fieldset>
     <details><summary>Các bước đã xử lý</summary><ol id="steps"></ol></details>
     <p id="notice" class="notice" role="status"></p>
+    <div class="manager-actions"><button id="manage" type="button">Quản lý link</button><button id="settings" type="button">Cài đặt</button></div>
   </main>
   <footer>Link đích có thể hết hạn. Mở trang đích để kiểm tra file.</footer>
 </body>

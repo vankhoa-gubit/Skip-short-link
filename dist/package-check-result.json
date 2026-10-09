@@ -1,0 +1,11 @@
+{
+  "outcome": "PASS",
+  "archive": "dist/AdSkip-1.0.0.zip",
+  "files": 132,
+  "textFilesScanned": 101,
+  "sensitiveKeyChecked": true,
+  "sensitiveMatches": 0,
+  "moduleCopiesChecked": 10,
+  "rulesetsChecked": 3,
+  "sha256": "a5b600ef437e07c91401df1710d73c7939bcb74cc50a939250a5d030ef3c47c7"
+}

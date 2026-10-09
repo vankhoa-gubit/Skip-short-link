@@ -1,0 +1,110 @@
+{
+  "version": "1.0.0",
+  "exportedAt": "2026-10-09T13:59:24.752Z",
+  "results": [
+    {
+      "sourceLabel": "ez4short.com/v1-manual",
+      "phase": "manual",
+      "message": "Trang EZ4Short chưa cung cấp URL đích trên nút lấy link. Hoàn tất thao tác trên trang rồi chọn Tiếp tục kiểm tra.",
+      "code": "EZ4_ALIAS",
+      "url": null,
+      "createdAt": 1791554362293
+    },
+    {
+      "sourceLabel": "ez4short.com/v1-final",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download",
+      "createdAt": 1791554361616
+    },
+    {
+      "sourceLabel": "ez4short.com/st",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download",
+      "createdAt": 1791554360905
+    },
+    {
+      "sourceLabel": "1shortlink.com/api/v1/full-pages",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/v1-fixture?sig=a%2Bb%3D&part=2#download",
+      "createdAt": 1791554360384
+    },
+    {
+      "sourceLabel": "ez4short.com/alias-manual",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2",
+      "createdAt": 1791554359896
+    },
+    {
+      "sourceLabel": "ez4short.com/alias-manual",
+      "phase": "manual",
+      "message": "Trang EZ4Short chưa cung cấp URL đích trên nút lấy link. Hoàn tất thao tác trên trang rồi chọn Tiếp tục kiểm tra.",
+      "code": "EZ4_ALIAS",
+      "url": null,
+      "createdAt": 1791554359774
+    },
+    {
+      "sourceLabel": "ez4short.com/st",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2",
+      "createdAt": 1791554351412
+    },
+    {
+      "sourceLabel": "ez4short.com/alias-final",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2#fragment",
+      "createdAt": 1791554350664
+    },
+    {
+      "sourceLabel": "ez4short.com/alias-final",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2#fragment",
+      "createdAt": 1791554350024
+    },
+    {
+      "sourceLabel": "1shortlink.com/api/v1/full-pages",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://gofile.io/d/tamper-fixture?sig=a%2Bb%3D#fragment",
+      "createdAt": 1791554349581
+    },
+    {
+      "sourceLabel": "1shortlink.com/link-encrypted/…",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2",
+      "createdAt": 1791554349257
+    },
+    {
+      "sourceLabel": "1shortlink.com/link-encrypted/…",
+      "phase": "manual",
+      "message": "Chưa thấy dữ liệu lấy link. Trang có thể yêu cầu mật khẩu, xác minh hoặc đã thay đổi giao diện.",
+      "code": "FORM_NOT_FOUND",
+      "url": null,
+      "createdAt": 1791554349090
+    },
+    {
+      "sourceLabel": "1shortlink.com/link-encrypted/…",
+      "phase": "resolved",
+      "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+      "code": null,
+      "url": "https://vexfile.com/download/tamper-fixture?sig=a%2Fb%2Bc%3D&part=2",
+      "createdAt": 1791554348439
+    }
+  ]
+}

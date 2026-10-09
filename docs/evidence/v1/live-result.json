@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-09T13:58:51.112Z",
+  "scope": "Supplied real URL decoded locally; no HTTP request and no file download.",
+  "input": "1shortlink.com/api/v1/full-pages",
+  "result": {
+    "phase": "resolved",
+    "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+    "url": "https://gofile.io/d/PKvjP6Yd",
+    "code": null,
+    "steps": [
+      {
+        "label": "Đọc URL đích từ link full-pages",
+        "url": "1shortlink.com/api/v1/full-pages"
+      },
+      {
+        "label": "Đã tìm địa chỉ đích",
+        "url": "gofile.io/d/PKvjP6Yd"
+      }
+    ]
+  },
+  "exchanges": []
+}

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "AdSkip",
-  "version": "0.3.0",
-  "description": "Tìm trang đích của 1shortlink, EZ4Short và lọc quảng cáo theo dịch vụ.",
+  "version": "1.0.0",
+  "description": "Tìm trang đích, xử lý nhiều link, lưu lịch sử cục bộ và lọc quảng cáo theo dịch vụ.",
   "minimum_chrome_version": "120",
   "permissions": ["storage", "activeTab", "webNavigation", "declarativeNetRequest"],
   "host_permissions": ["https://1shortlink.com/*", "https://www.1shortlink.com/*", "https://ez4short.com/*", "https://www.ez4short.com/*", "https://tech8s.net/*", "https://www.tech8s.net/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "AdSkip: tìm trang đích" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
   "content_scripts": [{
     "matches": ["https://1shortlink.com/*", "https://www.1shortlink.com/*", "https://ez4short.com/*", "https://www.ez4short.com/*", "https://tech8s.net/*", "https://www.tech8s.net/*"],
     "js": ["core.js", "ads.js", "panel.js", "content.js"], "run_at": "document_start", "all_frames": false

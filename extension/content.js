@@ -23,6 +23,7 @@
       await send({ type: "ADSKIP_STOP" }).catch(() => {});
     },
     onPreference(autoOpen) { return send({ type: "ADSKIP_PREFERENCE", autoOpen }); },
+    async onManager() { const reply = await send({ type: "ADSKIP_DASHBOARD", section: "batch" }); if (reply.error) throw new Error(reply.error); },
     async onAdFilter(enabled) {
       const reply = await send({ type: "ADSKIP_AD_FILTER", service, enabled });
       if (reply.ok) ads.setEnabled(reply.adFilters[service]);

@@ -14,7 +14,7 @@ function harness(options = {}) {
   const session = options.session || {};
   const local = options.local || {};
   const tabs = new Map([[1, { id: 1, url: input }], [2, { id: 2, url: "https://example.org/" }]]);
-  const opened = []; const navigated = []; const requests = [];
+  const opened = []; const navigated = []; const requests = []; const dashboards = [];
   const area = (data) => ({
     async get(keys) {
       if (keys === null) return structuredClone(data);
@@ -25,7 +25,7 @@ function harness(options = {}) {
     async remove(key) { delete data[key]; }
   });
   const chrome = {
-    runtime: { id: "qa", getURL: (file) => "chrome-extension://qa/" + file, onMessage: event(), onInstalled: event(), onStartup: event() },
+    runtime: { id: "qa", getURL: (file) => "chrome-extension://qa/" + file, onMessage: event(), onInstalled: event(), onStartup: event(), async openOptionsPage() { dashboards.push(true); } },
     storage: { session: area(session), local: area(local), onChanged: event() },
     declarativeNetRequest: { enabled: [], async updateEnabledRulesets(update) { this.enabled = Array.from(update.enableRulesetIds); } },
     action: { async setBadgeText() {}, async setBadgeBackgroundColor() {} },
@@ -38,7 +38,7 @@ function harness(options = {}) {
       async sendMessage(id, message) { if (message.type === "ADSKIP_PAGE_HINTS") return options.hints ? options.hints(id) : null; }
     }
   };
-  const context = vm.createContext({ chrome, URL, URLSearchParams, AbortController, DOMException, TextDecoder, atob, setTimeout, clearTimeout,
+  const context = vm.createContext({ chrome, URL, URLSearchParams, AbortController, DOMException, TextDecoder, atob, setTimeout, clearTimeout, structuredClone,
     fetch: async (url, config) => { requests.push({ url, method: config.method }); if (options.fetch) return options.fetch(url, config); throw new Error("No network expected"); }
   });
   context.importScripts = (...files) => { for (const file of files) vm.runInContext(fs.readFileSync(path.join(__dirname, "../extension", file), "utf8"), context); };
@@ -52,7 +52,7 @@ function harness(options = {}) {
       if (keepAlive !== true && !responded) resolve(undefined);
     } catch (error) { reject(error); }
   });
-  return { send, session, local, tabs, opened, navigated, requests, chrome, content };
+  return { send, session, local, tabs, opened, navigated, requests, chrome, content, dashboards };
 }
 async function until(predicate) { for (let count = 0; count < 100; count++) { if (predicate()) return; await tick(); } throw new Error("Background state did not arrive"); }
 
@@ -178,4 +178,49 @@ test("installed and startup events reapply stored ad choices after static rules 
     h.chrome.runtime[eventName].emit({ reason: "update" });
     await until(() => h.chrome.declarativeNetRequest.enabled.join() === "ez4short");
   }
+});
+
+test("manager history, settings and queue messages accept extension pages only", async () => {
+  const h = harness();
+  for (const type of ["ADSKIP_APP_GET", "ADSKIP_APP_SETTINGS", "ADSKIP_APP_HISTORY_CLEAR", "ADSKIP_APP_BATCH_START"]) {
+    assert.ok((await h.send({ type, text: st, settings: { autoOpen: true } }, h.content())).error);
+  }
+  assert.equal(h.local.autoOpen, undefined); assert.equal(h.session.batch, undefined);
+  assert.equal((await h.send({ type: "ADSKIP_DASHBOARD", section: "settings" }, h.content())).ok, true);
+  assert.equal(h.session.dashboardSection, "settings"); assert.equal(h.dashboards.length, 1);
+  assert.ok((await h.send({ type: "ADSKIP_DASHBOARD" }, { ...h.content(), frameId: 1 })).error);
+});
+test("manager settings migrate 0.3 and single input results enter redacted local history", async () => {
+  const h = harness({ local: { autoOpen: true, adFilters: { "1short": false, ez4short: true, tech8s: false } } });
+  const snapshot = await h.send({ type: "ADSKIP_APP_GET" });
+  assert.equal(snapshot.settings.autoOpen, true); assert.equal(snapshot.settings.historyLimit, 100);
+  await h.send({ type: "ADSKIP_APP_SETTINGS", settings: { batchDelayMs: 500, saveHistory: false } });
+  await h.send({ type: "ADSKIP_RESOLVE", source: "input", url: st });
+  assert.equal(h.local.history.length, 0);
+  await h.send({ type: "ADSKIP_APP_SETTINGS", settings: { saveHistory: true } });
+  await h.send({ type: "ADSKIP_RESOLVE", source: "input", url: st });
+  const history = (await h.send({ type: "ADSKIP_APP_HISTORY" })).history;
+  assert.equal(history.length, 1); assert.equal(history[0].url, destination); assert.ok(!JSON.stringify(history).includes("api=fixture"));
+  assert.equal(h.local.adFilters["1short"], false);
+  await h.send({ type: "ADSKIP_APP_HISTORY_OPEN", id: history[0].id }); assert.equal(h.opened[0].url, destination);
+  assert.ok((await h.send({ type: "ADSKIP_APP_HISTORY_OPEN", id: "missing" })).error);
+  await h.send({ type: "ADSKIP_APP_HISTORY_REMOVE", id: history[0].id }); assert.equal(h.local.history.length, 0);
+});
+test("manager batch stores queue in session, persists outcomes and continues from its explicitly opened tab", async () => {
+  const h = harness({ fetch: (url) => response(url, "Verify on page", 403), hints: (id) => ({ pageUrl: h.tabs.get(id).url, hints: { initialCandidate: st } }) });
+  await h.send({ type: "ADSKIP_APP_BATCH_START", text: input + "\ninvalid\n" + input });
+  await until(() => h.session.batch?.phase === "complete");
+  assert.equal(h.session.batch.duplicates, 1); assert.equal(h.session.batch.entries.length, 2); assert.equal(h.requests.length, 1);
+  assert.ok((await h.send({ type: "ADSKIP_APP_BATCH_CONTINUE", id: 1 })).error);
+  await h.send({ type: "ADSKIP_APP_BATCH_OPEN", id: 1 });
+  await h.send({ type: "ADSKIP_APP_BATCH_CONTINUE", id: 1 });
+  await until(() => h.session.batch?.phase === "complete" && h.session.batch.entries[0].phase === "resolved");
+  assert.equal(h.session.batch.entries[0].url, destination); assert.equal(h.requests.length, 1); assert.equal(h.navigated.length, 0);
+  assert.equal(h.local.history.length, 2); assert.ok(!JSON.stringify(h.local.history).includes('"sourceUrl"'));
+  await h.send({ type: "ADSKIP_APP_HISTORY_CLEAR" }); assert.deepEqual(h.local.history, []);
+});
+test("manager worker reconstruction preserves completed results and interrupts unfinished batch rows", async () => {
+  const h = harness({ session: { batch: { phase: "running", revision: 2, entries: [{ id: 1, phase: "resolved", url: destination, sourceUrl: st }, { id: 2, phase: "resolving", sourceUrl: input }] } } });
+  const snapshot = await h.send({ type: "ADSKIP_APP_GET" });
+  assert.equal(snapshot.batch.phase, "stopped"); assert.equal(snapshot.batch.entries[0].url, destination); assert.equal(snapshot.batch.entries[1].code, "SESSION_INTERRUPTED");
 });

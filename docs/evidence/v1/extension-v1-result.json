@@ -1,0 +1,97 @@
+{
+  "checkedAt": "2026-10-09T13:58:49.678Z",
+  "mode": "Unpacked MV3 extension, real options UI/messages/storage and HTTPS fixture server; browser-only host mapping; no Playwright network interception",
+  "outcome": "PASS",
+  "checks": [
+    "Popup opens native options page with the 1.0 manager",
+    "extension-v1: settings save delay/retention/history without changing ad preferences",
+    "extension-v1: mixed batch deduplicates, keeps signed destinations, reports manual/expired/invalid rows, requests serially with 500ms delay and opens no tabs",
+    "extension-v1: actual clipboard contains complete destination queries and fragments",
+    "extension-v1: downloaded JSON preserves full recognized targets and excludes source payloads/manual URLs",
+    "extension-v1: 51-line input is rejected without replacing completed results",
+    "extension-v1: explicit history Open creates a real destination tab with the complete URL",
+    "extension-v1: history search/status filter, individual deletion and actual JSON download work",
+    "extension-v1: history off prevents new records while retaining existing history",
+    "extension-v1: Stop aborts real in-flight transport, ignores late response and prevents next request; Resume completes remaining rows",
+    "extension-v1: HTTP 429 pauses pending rows; Resume does not retry the limited row; per-row retry preserves other results",
+    "extension-v1: manager fits 1440/390px viewports and supports keyboard tab navigation",
+    "Batch manual continuation requires its explicitly opened tab, reads the fresh DOM after user action and makes no repeated GET",
+    "Widget opens the manager again and session queue results survive closing its page",
+    "Actual service-worker stop/restart preserves completed rows, marks unfinished session rows interrupted and Resume completes them",
+    "Browser restart preserves local history/settings/ad choices; Clear history removes persisted results"
+  ],
+  "errors": [],
+  "exchanges": [
+    {
+      "host": "ez4short.com",
+      "path": "/v1-final",
+      "run": null,
+      "method": "GET",
+      "at": 1791554332139
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-manual",
+      "run": null,
+      "method": "GET",
+      "at": 1791554332653
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-expired",
+      "run": null,
+      "method": "GET",
+      "at": 1791554333177
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-slow",
+      "run": "extension-v1-stop",
+      "method": "GET",
+      "at": 1791554334698
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-slow",
+      "run": "extension-v1-stop",
+      "method": "GET",
+      "at": 1791554337010
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-final",
+      "run": "extension-v1-stop",
+      "method": "GET",
+      "at": 1791554339544
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-rate",
+      "run": "extension-v1",
+      "method": "GET",
+      "at": 1791554339945
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-manual",
+      "run": null,
+      "method": "GET",
+      "at": 1791554340503
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-manual",
+      "run": null,
+      "method": "GET",
+      "at": 1791554340612
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/v1-final",
+      "run": null,
+      "method": "GET",
+      "at": 1791554349269
+    }
+  ],
+  "browser": "151.0.7922.34"
+}

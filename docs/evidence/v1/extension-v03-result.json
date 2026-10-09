@@ -1,0 +1,300 @@
+{
+  "checkedAt": "2026-10-09T13:57:58.366Z",
+  "mode": "Unpacked MV3 extension, actual declarativeNetRequest rules and HTTPS fixture server; no Playwright routing or network interception; browser-only host mapping and QA certificate",
+  "outcome": "PASS",
+  "checks": [
+    "Native 1short rules block advertising script/frame before the server receives them; signed link, first-party script, file-host resource and verification frame still work",
+    "Widget toggle disables native rules and restores cosmetic elements; on the next page load advertising requests reach the server",
+    "Popup controls change services independently, synchronize the existing widget, and preserve auto-open preference",
+    "EZ4 www alias exposes a final control with complete query/fragment; its own toggle governs Google advertising requests",
+    "Tech8s keeps an explicit manual state while its service filter blocks advertising and preserves essential resources",
+    "Unrelated site can load the same advertising domain and has no widget or cosmetic filtering",
+    "Pasted EZ4 alias uses real service-worker GET and reads the enabled final control without a POST or file request",
+    "Pasted EZ4 alias follows a real HTTPS 302 into /st and preserves the signed query",
+    "Locked EZ4 control stays manual, then Continue reads freshly enabled DOM without an extra GET or any POST",
+    "Widget fits 390 × 844; popup has no horizontal overflow at 360px and shows all service choices",
+    "A real browser restart retains the three stored preferences and the matching enabled native rulesets"
+  ],
+  "errors": [],
+  "blocked": [
+    {
+      "host": "3nbf4.com",
+      "path": "/act/files/tag.min.js",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    },
+    {
+      "host": "3nbf4.com",
+      "path": "/frame",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/act/files/tag.min.js",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/frame",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/act/files/tag.min.js",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/frame",
+      "failure": "net::ERR_BLOCKED_BY_CLIENT"
+    }
+  ],
+  "exchanges": [
+    {
+      "host": "1shortlink.com",
+      "path": "/ll/filter",
+      "run": "one-on",
+      "method": "GET"
+    },
+    {
+      "host": "1shortlink.com",
+      "path": "/essential.js",
+      "run": "one-on",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "one-on",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "one-on",
+      "method": "GET"
+    },
+    {
+      "host": "1shortlink.com",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "1shortlink.com",
+      "path": "/ll/filter",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "1shortlink.com",
+      "path": "/essential.js",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "3nbf4.com",
+      "path": "/act/files/tag.min.js",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "3nbf4.com",
+      "path": "/frame",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "one-off",
+      "method": "GET"
+    },
+    {
+      "host": "1shortlink.com",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/filter-alias",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/essential.js",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/act/files/tag.min.js",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "path": "/frame",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "ez-off",
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/filter-alias",
+      "run": "ez-on",
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/essential.js",
+      "run": "ez-on",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "ez-on",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "ez-on",
+      "method": "GET"
+    },
+    {
+      "host": "www.ez4short.com",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "tech8s.net",
+      "path": "/article/",
+      "run": "tech-on",
+      "method": "GET"
+    },
+    {
+      "host": "tech8s.net",
+      "path": "/essential.js",
+      "run": "tech-on",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "tech-on",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "tech-on",
+      "method": "GET"
+    },
+    {
+      "host": "tech8s.net",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "example.org",
+      "path": "/unrelated",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "example.org",
+      "path": "/essential.js",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "vexfile.com",
+      "path": "/keep.js",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "3nbf4.com",
+      "path": "/act/files/tag.min.js",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "3nbf4.com",
+      "path": "/frame",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "path": "/frame",
+      "run": "external",
+      "method": "GET"
+    },
+    {
+      "host": "example.org",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/final-alias",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/redirected-alias",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/st",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/manual-alias",
+      "run": null,
+      "method": "GET"
+    },
+    {
+      "host": "ez4short.com",
+      "path": "/favicon.ico",
+      "run": null,
+      "method": "GET"
+    }
+  ],
+  "browser": "151.0.7922.34"
+}

@@ -18,6 +18,9 @@ const gmShim = `
 window.__qaRequests=[];window.__qaClipboard=null;window.__qaPreferences={};
 window.GM_getValue=(key,fallback)=>window.__qaPreferences[key]??fallback;
 window.GM_setValue=(key,value)=>{window.__qaPreferences[key]=value};
+window.GM_listValues=()=>Object.keys(window.__qaPreferences);
+window.GM_deleteValue=(key)=>{delete window.__qaPreferences[key]};
+window.GM_openInTab=(url)=>window.open(url,"_blank");
 window.GM_setClipboard=(text)=>{window.__qaClipboard=text};
 window.GM_xmlhttpRequest=(config)=>{
  let aborted=false; window.__qaRequests.push({url:config.url,method:config.method});

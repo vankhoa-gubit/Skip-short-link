@@ -13,11 +13,13 @@ for (const directory of ["src", "scripts", "tests", "extension"]) {
 const read = (name) => fs.readFileSync(path.join(root, "src", name), "utf8");
 const dist = path.join(root, "dist");
 fs.mkdirSync(dist, { recursive: true });
+const version = require("../src/core.js").VERSION;
+if (require("../package.json").version !== version || require("../extension/manifest.json").version !== version) throw new Error("Release versions must match Core.VERSION.");
 const header = `// ==UserScript==
 // @name         AdSkip: 1short & EZ4Short
 // @namespace    local.adskip
-// @version      0.3.0
-// @description  Tìm trang đích của 1shortlink, EZ4Short và ẩn khung quảng cáo theo dịch vụ.
+// @version      ${version}
+// @description  Tìm trang đích 1shortlink/EZ4Short, xử lý nhiều link, lưu lịch sử cục bộ và ẩn khung quảng cáo.
 // @match        https://1shortlink.com/*
 // @match        https://www.1shortlink.com/*
 // @match        https://ez4short.com/*
@@ -33,15 +35,20 @@ const header = `// ==UserScript==
 // @grant        GM_setValue
 // @grant        GM_setClipboard
 // @grant        GM_addValueChangeListener
+// @grant        GM_listValues
+// @grant        GM_deleteValue
+// @grant        GM_openInTab
+// @downloadURL  https://raw.githubusercontent.com/vankhoa-gubit/Skip-short-link/main/dist/adskip.user.js
+// @updateURL    https://raw.githubusercontent.com/vankhoa-gubit/Skip-short-link/main/dist/adskip.user.js
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
 `;
-const shared = ["core.js", "adapters.js", "resolver.js", "ads.js", "panel.js"].map(read).join("\n\n");
+const shared = ["core.js", "adapters.js", "resolver.js", "ads.js", "library.js", "batch.js", "panel.js", "workspace.js"].map(read).join("\n\n");
 fs.writeFileSync(path.join(dist, "adskip.user.js"), header + "\n(function () {\n" + shared + "\n" + read("userscript-entry.js") + "\n})();\n", "utf8");
 const extension = path.join(root, "extension");
 if (fs.existsSync(path.join(extension, "manifest.json"))) {
-  for (const name of ["core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js", "panel.js"]) fs.writeFileSync(path.join(extension, name), read(name));
+  for (const name of ["core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js", "library.js", "batch.js", "panel.js", "workspace.js"]) fs.writeFileSync(path.join(extension, name), read(name));
   const Ads = require("../src/ads.js");
   const rules = path.join(extension, "rules"); fs.mkdirSync(rules, { recursive: true });
   for (const service of Ads.services) fs.writeFileSync(path.join(rules, service.id + ".json"), JSON.stringify(Ads.rules(service), null, 2) + "\n");
