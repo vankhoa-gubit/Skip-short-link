@@ -3,6 +3,7 @@
   const Core = globalThis.AdSkipCore;
   const Resolver = globalThis.AdSkipResolver;
   const Panel = globalThis.AdSkipPanel;
+  const Ads = globalThis.AdSkipAds;
   if (window.top !== window || !Core.SERVICE_HOSTS.has(location.hostname)) return;
   Panel.prepareEz4Page();
   if (!document.documentElement) await new Promise((resolve) => {
@@ -10,6 +11,9 @@
     observer.observe(document, { childList: true });
   });
   let autoOpen = !!GM_getValue("autoOpen", false);
+  const service = Core.serviceOf(location.href);
+  const label = Ads.services.find(({ id }) => id === service).label;
+  const ads = Ads.mount(document, service, Ads.normalize(GM_getValue("adFilters", null))[service]);
   let controller;
   let generation = 0;
   let lastResult;
@@ -37,9 +41,17 @@
     onContinue: start,
     onStop() { generation++; controller?.abort(); lastResult = null; panel.render({ phase: "stopped", message: "Đã dừng xử lý.", code: "CANCELLED", steps: [] }); },
     onPreference(value) { autoOpen = value; GM_setValue("autoOpen", value); maybeOpen(); },
+    async onAdFilter(enabled) {
+      const next = { ...Ads.normalize(GM_getValue("adFilters", null)), [service]: enabled };
+      await GM_setValue("adFilters", next); ads.setEnabled(enabled);
+      return { adFilters: next };
+    },
     onCopy(url) { GM_setClipboard(url, "text"); }
-  }, autoOpen);
+  }, autoOpen, { enabled: Ads.normalize(GM_getValue("adFilters", null))[service], label: "Ẩn khung quảng cáo trên " + label, help: "Ẩn khung đã nhận diện; không chặn kết nối mạng." });
   if (!panel) return;
+  if (typeof GM_addValueChangeListener === "function") GM_addValueChangeListener("adFilters", (name, oldValue, newValue) => {
+    const enabled = Ads.normalize(newValue)[service]; ads.setEnabled(enabled); panel.setAdFilter(enabled);
+  });
   async function start() {
     controller?.abort(); controller = new AbortController();
     const current = ++generation;

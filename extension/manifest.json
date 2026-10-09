@@ -1,16 +1,21 @@
 {
   "manifest_version": 3,
   "name": "AdSkip",
-  "version": "0.2.0",
-  "description": "Tìm trang đích cho các dạng 1shortlink và EZ4Short đã kiểm chứng.",
+  "version": "0.3.0",
+  "description": "Tìm trang đích của 1shortlink, EZ4Short và lọc quảng cáo theo dịch vụ.",
   "minimum_chrome_version": "120",
-  "permissions": ["storage", "activeTab", "webNavigation"],
+  "permissions": ["storage", "activeTab", "webNavigation", "declarativeNetRequest"],
   "host_permissions": ["https://1shortlink.com/*", "https://www.1shortlink.com/*", "https://ez4short.com/*", "https://www.ez4short.com/*", "https://tech8s.net/*", "https://www.tech8s.net/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "AdSkip: tìm trang đích" },
   "content_scripts": [{
     "matches": ["https://1shortlink.com/*", "https://www.1shortlink.com/*", "https://ez4short.com/*", "https://www.ez4short.com/*", "https://tech8s.net/*", "https://www.tech8s.net/*"],
-    "js": ["core.js", "panel.js", "content.js"], "run_at": "document_start", "all_frames": false
+    "js": ["core.js", "ads.js", "panel.js", "content.js"], "run_at": "document_start", "all_frames": false
   }],
+  "declarative_net_request": { "rule_resources": [
+    { "id": "1short", "enabled": true, "path": "rules/1short.json" },
+    { "id": "ez4short", "enabled": true, "path": "rules/ez4short.json" },
+    { "id": "tech8s", "enabled": true, "path": "rules/tech8s.json" }
+  ] },
   "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" }
 }

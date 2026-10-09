@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "initiatorDomains": [
+        "ez4short.com",
+        "www.ez4short.com"
+      ],
+      "requestDomains": [
+        "googlesyndication.com",
+        "doubleclick.net"
+      ],
+      "resourceTypes": [
+        "script",
+        "image",
+        "xmlhttprequest",
+        "sub_frame",
+        "ping",
+        "media",
+        "other"
+      ]
+    }
+  }
+]

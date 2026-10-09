@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>AdSkip</title><link rel="stylesheet" href="popup.css">
-  <script src="core.js" defer></script><script src="popup.js" defer></script>
+  <script src="core.js" defer></script><script src="ads.js" defer></script><script src="popup.js" defer></script>
 </head>
 <body>
-  <header><div><h1>AdSkip</h1><span class="version">0.2.0</span></div><span id="current-host">Tab đang mở</span></header>
+  <header><div><h1>AdSkip</h1><span class="version">0.3.0</span></div><span id="current-host">Tab đang mở</span></header>
   <main>
     <form id="link-form" novalidate>
       <label for="link-input">Link cần tìm trang đích</label>
@@ -32,6 +32,14 @@
     <button id="resolve" class="tab-action" type="button">Phân tích tab này</button>
     <label class="preference"><input id="auto-open" type="checkbox">Tự mở đích của tab đang xử lý</label>
     <p id="preference-help" class="help hidden">Với link đã dán, chọn Mở trang đích khi cần.</p>
+    <fieldset class="ad-filters">
+      <legend>Chặn quảng cáo theo dịch vụ</legend>
+      <p class="help">Lọc quảng cáo đã nhận diện khi mở các trang này.</p>
+      <label class="preference"><input type="checkbox" data-ad-service="1short" disabled>1shortlink</label>
+      <label class="preference"><input type="checkbox" data-ad-service="ez4short" disabled>EZ4Short</label>
+      <label class="preference"><input type="checkbox" data-ad-service="tech8s" disabled>Tech8s</label>
+      <p id="ad-error" class="field-error hidden" role="alert"></p>
+    </fieldset>
     <details><summary>Các bước đã xử lý</summary><ol id="steps"></ol></details>
     <p id="notice" class="notice" role="status"></p>
   </main>

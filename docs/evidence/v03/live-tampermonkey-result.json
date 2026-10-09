@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-09T09:37:52.825Z",
+  "scope": "Official Tampermonkey and bundle installed through editor in a fresh isolated Chromium profile for this live run; real GM APIs and supported-service responses; third-party ads/media blocked; auto-open off; downloads disabled",
+  "outcome": "PASS",
+  "input": "1shortlink.com/api/v1/full-pages",
+  "managerVersion": "5.4.1",
+  "checks": [
+    "Bundle installed through the real Tampermonkey editor and native userscript permission in a fresh profile",
+    "Installed userscript resolves the supplied URL on the actual shortener page using real GM APIs",
+    "Destination matches the original full-pages URL; no automatic navigation or page error"
+  ],
+  "exchanges": [
+    {
+      "method": "GET",
+      "request": "1shortlink.com/api/v1/full-pages",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "request": "1shortlink.com/link-encrypted/…",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "request": "www.tampermonkey.net/index.php",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "request": "1shortlink.com/get-link-download",
+      "status": 200
+    }
+  ],
+  "browser": "151.0.7922.34",
+  "destination": "https://gofile.io/d/PKvjP6Yd",
+  "blockedRequests": 14,
+  "pageErrors": 0
+}

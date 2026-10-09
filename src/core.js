@@ -5,7 +5,7 @@
   else root.AdSkipCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const VERSION = "0.2.0";
+  const VERSION = "0.3.0";
   const SERVICE_HOSTS = new Set(["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net"]);
   const FILE_HOSTS = ["vexfile.com", "gofile.io", "gofile.me", "disk.yandex.ru", "disk.yandex.com", "yadi.sk"];
 
@@ -125,15 +125,46 @@
     return urlOf(data.redirect_url, pageUrl).href;
   }
   function buttonCandidate(html, pageUrl) {
-    for (const tag of html.match(/<[^>]*\bid=["']redirect-link["'][^>]*>/gi) || []) {
-      const match = /\bdata-href=["']([^"']+)["']/i.exec(tag);
-      if (match) return urlOf(decodeEntities(match[1]), pageUrl).href;
+    const service = serviceOf(pageUrl);
+    if (!["1short", "ez4short"].includes(service)) return null;
+    // Ignore inert markup and JavaScript strings that resemble link controls.
+    const markup = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+    const candidates = new Set();
+    for (const tag of markup.matchAll(/<(?:a|button)\b([^>]*)>/gi)) {
+      const attributes = Object.create(null);
+      for (const attribute of tag[1].matchAll(/([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+        const name = attribute[1].toLowerCase();
+        if (!(name in attributes)) attributes[name] = decodeEntities(attribute[2] ?? attribute[3] ?? attribute[4] ?? "");
+      }
+      const classes = (attributes.class || "").split(/\s+/);
+      const recognized = service === "1short" ? attributes.id === "redirect-link" :
+        ["redirect-link", "get-link", "go-link"].includes(attributes.id) || classes.includes("get-link");
+      if (!recognized || "disabled" in attributes || "hidden" in attributes ||
+          /^true$/i.test(attributes["aria-disabled"] || "") || /^true$/i.test(attributes["aria-hidden"] || "") ||
+          classes.some((name) => ["disabled", "link-disabled"].includes(name)) ||
+          /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(attributes.style || "")) continue;
+      const value = attributes["data-href"] || (service === "ez4short" && attributes.href);
+      if (!value || value.startsWith("#")) continue;
+      let target;
+      try { target = urlOf(value, pageUrl).href; } catch { continue; }
+      if (visitKey(target) === visitKey(pageUrl)) continue;
+      if (service === "ez4short" && serviceOf(target) === "unknown") continue;
+      candidates.add(target);
     }
-    return null;
+    if (candidates.size > 1) throw new AdSkipError("AMBIGUOUS_TARGET", "Trang cung cấp nhiều URL đích khác nhau. Mở bước hiện tại để kiểm tra.");
+    return candidates.values().next().value || null;
+  }
+  function ez4Alias(input) {
+    const url = urlOf(input);
+    if (serviceOf(url) !== "ez4short" || !/^\/[a-z0-9_-]{1,128}\/?$/i.test(url.pathname)) return false;
+    const name = url.pathname.split("/")[1].toLowerCase();
+    return !["st", "api", "admin", "auth", "login", "logout", "register", "dashboard", "users", "profile", "account", "links", "pages", "tools", "contact", "privacy", "terms"].includes(name);
   }
   function canRequest(input, method = "GET") {
     const url = urlOf(input);
-    if (serviceOf(url) !== "1short" || (url.port && url.port !== "443")) return false;
+    if (url.port && url.port !== "443") return false;
+    if (serviceOf(url) === "ez4short") return method === "GET" && ez4Alias(url.href);
+    if (serviceOf(url) !== "1short") return false;
     if (method === "POST") return url.pathname === "/get-link-download" && !url.search && !url.hash;
     return method === "GET" && (url.pathname === "/redirect-link" || url.pathname.startsWith("/link-encrypted/") || /^\/ll\/[^/]+\/?$/.test(url.pathname));
   }
@@ -146,5 +177,5 @@
     if (response.status < 200 || response.status >= 300) return new AdSkipError("HTTP_ERROR", "Trang trung gian trả HTTP " + response.status + ". Thử lại sau.");
     return null;
   }
-  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
+  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, ez4Alias, canRequest, httpError };
 });

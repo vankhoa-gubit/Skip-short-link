@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-09T09:35:52.409Z",
+  "mode": "Unpacked MV3 extension in isolated Chromium profile; fixture network, real chrome.* APIs",
+  "browser": "151.0.7922.34",
+  "checks": [
+    "Unpacked MV3 extension: content script → service worker fetch → HTTP redirect → full signed URL (fixture network)",
+    "Per-tab state: Tech8s manual state does not replace the resolved 1short tab",
+    "document-start/webNavigation captures the /st destination",
+    "Real extension popup reads the active tab state and renders the trace",
+    "Stop aborts the pending page-hint wait and records a stopped state",
+    "Retry resumes after Stop",
+    "Explicit auto-open preference navigates only to a recognized file host"
+  ],
+  "errors": []
+}

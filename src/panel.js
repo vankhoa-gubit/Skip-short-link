@@ -43,7 +43,7 @@
     document.body.append(main);
     return target;
   }
-  function mount(handlers, autoOpen = false) {
+  function mount(handlers, autoOpen = false, adFilter) {
     const previous = document.getElementById("adskip-widget");
     if (previous) return null;
     const host = document.createElement("div");
@@ -81,10 +81,16 @@
     const checkbox = element("input"); checkbox.type = "checkbox"; checkbox.checked = autoOpen;
     const preferenceText = element("span", "Mở trang đích khi tìm được");
     preference.append(checkbox, preferenceText);
+    const adPreference = element("label", undefined, "preferences");
+    const adCheckbox = element("input"); adCheckbox.type = "checkbox"; adCheckbox.checked = !!adFilter?.enabled;
+    adPreference.append(adCheckbox, element("span", adFilter?.label || "Lọc quảng cáo"));
+    const adHelp = element("p", adFilter?.help || "", "ad-help");
+    adHelp.style.cssText = "font-size:11px;line-height:1.5;color:#5a687e;margin:5px 0 0";
+    if (!adFilter) { adPreference.classList.add("hidden"); adHelp.classList.add("hidden"); }
     const details = element("details"); const summary = element("summary", "Các bước đã xử lý");
     const steps = element("ol", undefined, "steps"); details.append(summary, steps);
     const toast = element("p", "", "toast"); toast.setAttribute("role", "status");
-    body.append(status, message, guidance, destination, actions, preference, details, toast);
+    body.append(status, message, guidance, destination, actions, preference, adPreference, adHelp, details, toast);
     panel.append(header, body);
     const launcher = element("button", "AdSkip", "launcher hidden");
     launcher.type = "button"; launcher.setAttribute("aria-label", "Mở bảng AdSkip");
@@ -98,6 +104,14 @@
     resume.addEventListener("click", () => (handlers.onContinue || handlers.onStart)());
     stop.addEventListener("click", () => handlers.onStop());
     checkbox.addEventListener("change", () => handlers.onPreference(checkbox.checked));
+    adCheckbox.addEventListener("change", async () => {
+      const requested = adCheckbox.checked; adCheckbox.disabled = true;
+      try {
+        const reply = await handlers.onAdFilter(requested);
+        if (reply?.error) throw new Error(reply.error);
+      } catch (error) { adCheckbox.checked = !requested; toast.textContent = error.message || "Chưa lưu được tùy chọn quảng cáo."; }
+      finally { adCheckbox.disabled = false; }
+    });
     copy.addEventListener("click", async () => {
       try { await handlers.onCopy(state.url); toast.textContent = "Đã sao chép địa chỉ."; }
       catch { toast.textContent = "Chưa sao chép được. Mở link rồi sao chép từ thanh địa chỉ."; }
@@ -132,10 +146,12 @@
         item.append(element("span", step.url, "step-url")); steps.append(item);
       }
     }
-    return { render, setPreference(value) { checkbox.checked = !!value; }, host, shadow };
+    return { render, setPreference(value) { checkbox.checked = !!value; }, setAdFilter(value) { adCheckbox.checked = !!value; }, host, shadow };
   }
   async function pageHints(signal, waitMs = 8000) {
-    if (Core.serviceOf(location.href) !== "1short") return {};
+    const service = Core.serviceOf(location.href);
+    if (!["1short", "ez4short"].includes(service)) return {};
+    if (Core.oneShortDestination(location.href) || Core.ez4Destination(location.href)) return {};
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     if (document.readyState === "loading") await new Promise((resolve, reject) => {
       let timer;
@@ -147,15 +163,19 @@
       timer = setTimeout(ready, waitMs);
       if (signal?.aborted) abort();
     });
-    const candidate = () => document.getElementById("redirect-link")?.getAttribute("data-href");
+    const selector = service === "1short" ? "#redirect-link" : "a#redirect-link,button#redirect-link,a#get-link,button#get-link,a#go-link,button#go-link,a.get-link,button.get-link";
+    const candidate = () => {
+      try { return Core.buttonCandidate([...document.querySelectorAll(selector)].map((node) => node.outerHTML).join("\n"), location.href); }
+      catch { return null; }
+    };
     let result = candidate();
-    if (!result && document.getElementById("redirect-link")) {
+    if (!result && document.querySelector(selector)) {
       result = await new Promise((resolve) => {
         let timer;
         const finish = (value) => { observer.disconnect(); clearTimeout(timer); signal?.removeEventListener("abort", abort); resolve(value); };
         const observer = new MutationObserver(() => { const value = candidate(); if (value) finish(value); });
         const abort = () => finish(null);
-        observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href"], childList: true });
+        observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href", "href", "class", "disabled", "aria-disabled", "hidden", "style"], childList: true });
         timer = setTimeout(() => finish(null), waitMs);
         if (signal?.aborted) finish(null); else signal?.addEventListener("abort", abort, { once: true });
       });

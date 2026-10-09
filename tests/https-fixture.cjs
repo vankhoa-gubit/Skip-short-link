@@ -4,7 +4,7 @@ const path = require("node:path");
 const https = require("node:https");
 const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
-async function fixtureServer(handler) {
+async function fixtureServer(handler, additionalHosts = []) {
   const keyPath = path.join(root, "work/fixture-key.pem");
   const certPath = path.join(root, "work/fixture-cert.pem");
   fs.mkdirSync(path.join(root, "work"), { recursive: true });
@@ -26,7 +26,7 @@ async function fixtureServer(handler) {
   });
   await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
   const port = server.address().port;
-  const hosts = ["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net", "vexfile.com", "gofile.io", "example.org"];
+  const hosts = [...new Set(["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net", "vexfile.com", "gofile.io", "example.org", ...additionalHosts])];
   return {
     browserArgs: ["--host-resolver-rules=" + hosts.map((host) => "MAP " + host + " 127.0.0.1:" + port).join(","), "--ignore-certificate-errors"],
     close() { server.closeAllConnections(); return new Promise((resolve) => server.close(resolve)); }

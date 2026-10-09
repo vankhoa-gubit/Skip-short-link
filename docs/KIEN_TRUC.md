@@ -1,9 +1,11 @@
-# Kiến trúc AdSkip 0.2.0
+# Kiến trúc AdSkip 0.3.0
 
 ## Các luồng hỗ trợ
 
 ```text
 Popup full-pages → Base64 URL envelope → URL đích, không cần request
+
+EZ4Short /alias → HTTP redirect hoặc nút lấy link đã sẵn sàng → URL đích
 
 Tab hoặc popup link-encrypted
     → dữ liệu data-href/getLink từ DOM mới hoặc HTML
@@ -23,14 +25,17 @@ Payload mã hóa của 1short được gửi như dữ liệu opaque tới endpo
 | File | Trách nhiệm |
 | --- | --- |
 | `src/core.js` | URL/domain, input popup, full-pages, `/st`, lời gọi literal `getLink`, data-href, lỗi HTTP, che trace |
-| `src/resolver.js` | Adapter, bước xử lý, loop/hop limit, kết quả resolved/manual/error/stopped |
+| `src/adapters.js` | Bộ xử lý 1shortlink, EZ4Short và Tech8s; mỗi dịch vụ trả bước tiếp theo hoặc trạng thái thủ công |
+| `src/resolver.js` | Điều phối adapter, bước xử lý, loop/hop limit, kết quả resolved/manual/error/stopped |
+| `src/ads.js` | Danh sách domain theo dịch vụ, sinh ruleset DNR, chuẩn hóa tùy chọn, ẩn/khôi phục phần tử DOM |
+| `src/ad-settings.js` | Xếp hàng thay đổi bộ lọc, áp dụng DNR và lưu tùy chọn, rollback khi lưu thất bại, đồng bộ sau nâng cấp |
 | `src/fetch-transport.js` | Transport service worker, timeout, abort, endpoint/body limit |
 | `src/panel.js` | Widget Shadow DOM, lấy dữ liệu trang, chờ DOM có thể hủy, Tiếp tục kiểm tra |
 | `src/userscript-entry.js` | GM transport, tùy chọn, clipboard, dữ liệu mới khi tiếp tục và bảo vệ tự mở |
 | `extension/background.js` | Job tab và input, thứ tự ghi, phiên bản job, lưu trạng thái, đọc DOM qua content script, điều hướng |
 | `extension/content.js` | Widget, trả lời `ADSKIP_PAGE_HINTS` bằng dữ liệu trang hiện tại |
 | `extension/popup.js` | Form URL, validation, nguồn kết quả, khôi phục input, tiếp tục/dừng/mở/sao chép |
-| `scripts/build.cjs` | Kiểm tra cú pháp, bundle userscript, đồng bộ module dùng chung vào extension |
+| `scripts/build.cjs` | Kiểm tra cú pháp, bundle userscript, đồng bộ module dùng chung và sinh ba ruleset vào extension |
 
 ## Quy tắc URL và request
 
@@ -39,6 +44,7 @@ Payload mã hóa của 1short được gửi như dữ liệu opaque tới endpo
 - `/st` giữ URL thô sau `url=` hoặc giải mã lớp bọc, giữ query/chữ ký bên trong.
 - Full-pages giải mã Base64 UTF-8, kiểm tra URL đích và từ chối tham số trùng hoặc lớp bọc hỏng.
 - Phân tích JavaScript literal; không `eval` mã của trang. POST chỉ tới `/get-link-download` trên cùng origin.
+- EZ4Short chỉ GET đường dẫn `/alias` gồm 1–128 ký tự chữ/số/gạch dưới/gạch ngang; loại các route quản trị/tài khoản biết trước và không POST form. Đọc `a`/`button` nhận diện qua `redirect-link`, `get-link`, `go-link` hoặc class `get-link`; bỏ nút disabled/hidden, markup inert, URL không an toàn/không hỗ trợ và báo lỗi nếu có nhiều đích khác nhau.
 - Resolver tối đa 8 bước và phát hiện vòng lặp. Transport có timeout 15 giây, body tối đa 1 MiB.
 - Fragment trực tiếp của `/st` và full-pages được giữ. Qua HTTP redirect, API fetch có thể bỏ fragment trong URL trả về; phạm vi kiểm chứng trong báo cáo.
 
@@ -46,11 +52,11 @@ Payload mã hóa của 1short được gửi như dữ liệu opaque tới endpo
 
 Content script/userscript chạy ở `document_start` trên frame trên cùng. Với `/st` đã có đích nhận diện được, widget giữ link sớm trước khi site thay URL. Extension có thêm `webNavigation.onBeforeNavigate`.
 
-Trên 1short, widget chờ DOM và có thể đợi tối đa 8 giây để nhận data-href mà site đã lấy trong cùng phiên. Dừng hủy lượt chờ. Khi tiếp tục, userscript đọc trang hiện tại; extension gửi `ADSKIP_PAGE_HINTS` để content script trả dữ liệu mới thay vì dùng lại snapshot.
+Trên 1short và alias EZ4Short, widget chờ DOM và có thể đợi tối đa 8 giây để nhận URL trên nút lấy link mà site đã cung cấp trong cùng phiên. Dừng hủy lượt chờ. Khi tiếp tục, userscript đọc trang hiện tại; extension gửi `ADSKIP_PAGE_HINTS` để content script trả dữ liệu mới thay vì dùng lại snapshot.
 
 Job popup link đã dán tách khỏi job tab. Khi mở bước thủ công bằng popup, `manualTabId` gắn job với tab được mở rõ ràng. Tiếp tục chỉ đọc tab đó. Không dùng tùy tiện dữ liệu của tab đang hoạt động khác.
 
-`storage.session` lưu `input`, `tab:<id>` và nguồn popup. `storage.local` lưu `autoOpen`. Link và kết quả được khôi phục khi mở lại popup. Kết quả quá một giờ bị loại khi truy cập lại; đây là hết hạn khi đọc, không phải bộ hẹn giờ xóa nền.
+`storage.session` lưu `input`, `tab:<id>` và nguồn popup. `storage.local` lưu `autoOpen` và `adFilters` với ba giá trị boolean riêng. Link và kết quả được khôi phục khi mở lại popup. Kết quả quá một giờ bị loại khi truy cập lại; đây là hết hạn khi đọc, không phải bộ hẹn giờ xóa nền.
 
 Các lần ghi được xếp hàng theo job và kiểm tra phiên bản. Dừng/job mới/navigation vô hiệu hóa kết quả lượt cũ. Khi worker khởi động lại và còn trạng thái resolving nhưng không còn job sống, chuyển ngay sang stopped với `SESSION_INTERRUPTED`, lưu lại và cho Tìm lại. Không tự khôi phục request bị ngắt.
 
@@ -58,7 +64,23 @@ Tự mở chỉ áp dụng cho job tab, khi người dùng bật tùy chọn, đ
 
 ## Quyền và dữ liệu
 
-Extension yêu cầu `storage`, `activeTab`, `webNavigation`; quyền host giới hạn ở 1shortlink, EZ4Short, Tech8s và các bản www. Userscript khai báo match/connect tương ứng. AdSkip không có backend, telemetry hoặc dịch vụ giải link ngoài.
+Extension yêu cầu `storage`, `activeTab`, `webNavigation`, `declarativeNetRequest`; quyền host vẫn giới hạn ở 1shortlink, EZ4Short, Tech8s và các bản www. Quyền DNR cho phép block request theo quy tắc mà không thêm quyền host cho các mạng quảng cáo. Userscript khai báo match/connect tương ứng và `GM_addValueChangeListener` để đồng bộ tùy chọn quảng cáo. AdSkip không có backend, telemetry hoặc dịch vụ giải link ngoài.
+
+## Bộ lọc quảng cáo
+
+| Dịch vụ khởi tạo request | Domain quảng cáo được lọc |
+| --- | --- |
+| 1shortlink | `googlesyndication.com`, `doubleclick.net`, `3nbf4.com`, `jhnwr.com`, `forfrogadiertor.com` |
+| EZ4Short | `googlesyndication.com`, `doubleclick.net` |
+| Tech8s | `googlesyndication.com`, `doubleclick.net` |
+
+DNR dùng `initiatorDomains` để giới hạn trang khởi tạo và `requestDomains` để so khớp ranh giới domain/subdomain. Lọc script, ảnh, XHR/fetch, iframe, ping, media và other; không chặn điều hướng main frame. Do đó chưa có cam kết chặn mọi popup hoặc mọi mạng quảng cáo. Tài nguyên first-party, Cloudflare Turnstile, Google reCAPTCHA và file host không nằm trong danh sách.
+
+Các domain riêng của 1short được lấy từ tài nguyên trang đã quan sát; lượt live 0.3 xác nhận hai script từ `3nbf4.com` và `forfrogadiertor.com` bị chặn. Google ad domains là danh sách cơ sở cho cả ba dịch vụ; chưa xác nhận mức phủ quảng cáo trên alias EZ4Short/Tech8s thật.
+
+Ba static ruleset mặc định bật. Thay đổi được xếp hàng, áp dụng native rồi lưu. Nếu lưu thất bại, khôi phục ruleset trước đó; nếu cả rollback thất bại, báo lỗi riêng và lần đọc popup tiếp theo đồng bộ lại. Khi worker chạy, cài/nâng cấp, startup hoặc tùy chọn thay đổi, đọc lại lựa chọn đã lưu. [Chrome DNR](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest) mô tả enabled static ruleset được giữ giữa các phiên nhưng reset khi nâng cấp extension.
+
+Bộ lọc DOM chung chỉ đánh dấu iframe/ảnh tới các domain quảng cáo và `ins.adsbygoogle`, quan sát phần tử mới/thay đổi `src` hoặc class. Khi tắt hoặc phần tử không còn khớp, khôi phục marker trước đó; không sửa CSS/hidden gốc của trang. Userscript chỉ có phần lọc DOM, request vẫn xảy ra. Extension có cả DNR và phần lọc DOM. Cache `extension/_metadata` do Chromium sinh được bỏ khỏi Git và ZIP.
 
 URL đầy đủ, kể cả API key/ciphertext/query có chữ ký, được giữ cục bộ để mở, sao chép và Tìm lại. Trace che query/payload. Profile, input thật, TLS key và gói Tampermonkey nằm trong `work/` và không thuộc ZIP. Chỉ ảnh/JSON đã kiểm tra mới được đưa vào `docs/`.
 

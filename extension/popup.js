@@ -1,5 +1,6 @@
 "use strict";
 const Core = globalThis.AdSkipCore;
+const Ads = globalThis.AdSkipAds;
 const node = (id) => document.getElementById(id);
 let tabId; let source = "tab"; let currentState; let noticeTimer; let generation = 0;
 function notice(text) { node("notice").textContent = text; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { node("notice").textContent = ""; }, 5000); }
@@ -83,10 +84,27 @@ node("copy").addEventListener("click", async () => {
   catch { notice("Chưa sao chép được. Mở link và sao chép từ thanh địa chỉ."); }
 });
 node("auto-open").addEventListener("change", async () => { const reply = await send("ADSKIP_PREFERENCE", { autoOpen: node("auto-open").checked }); if (reply.error) notice(reply.error); });
+function renderFilters(preferences = {}) {
+  const enabled = Ads.normalize(preferences.adFilters);
+  for (const checkbox of document.querySelectorAll("[data-ad-service]")) checkbox.checked = enabled[checkbox.dataset.adService];
+  node("ad-error").textContent = preferences.adFilterError || "";
+  node("ad-error").classList.toggle("hidden", !preferences.adFilterError);
+}
+for (const checkbox of document.querySelectorAll("[data-ad-service]")) {
+  checkbox.addEventListener("change", async () => {
+    checkbox.disabled = true;
+    const requested = checkbox.checked;
+    const reply = await send("ADSKIP_AD_FILTER", { service: checkbox.dataset.adService, enabled: requested });
+    if (reply.error) { checkbox.checked = !requested; node("ad-error").textContent = reply.error; node("ad-error").classList.remove("hidden"); }
+    else { checkbox.checked = reply.adFilters[checkbox.dataset.adService]; node("ad-error").classList.add("hidden"); }
+    checkbox.disabled = false;
+  });
+}
 chrome.storage.onChanged.addListener((changes, area) => {
   const key = source === "input" ? "input" : "tab:" + tabId;
   if (area === "session" && changes[key]?.newValue) render(changes[key].newValue);
   if (area === "local" && changes.autoOpen) node("auto-open").checked = !!changes.autoOpen.newValue;
+  if (area === "local" && changes.adFilters) renderFilters({ adFilters: changes.adFilters.newValue });
 });
 (async () => {
   const initial = generation;
@@ -95,9 +113,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   try { node("current-host").textContent = new URL(tab.url).hostname; } catch { node("current-host").textContent = "Tab đang mở"; }
   // Input jobs do not depend on the current tab and survive closing the popup.
   const reply = await send("ADSKIP_GET", { restore: true, source: Number.isInteger(tabId) ? "tab" : "input" });
+  renderFilters(reply.preferences);
+  if (reply.preferences) for (const checkbox of document.querySelectorAll("[data-ad-service]")) checkbox.disabled = false;
+  node("auto-open").checked = !!reply.preferences?.autoOpen;
   if (initial !== generation) return;
   source = reply.source || "tab"; currentState = null;
   if (reply.inputState?.sourceUrl) node("link-input").value = reply.inputState.sourceUrl;
   render(reply.state || { phase: "error", message: reply.error || "Chưa đọc được trạng thái. Thử lại.", steps: [] });
-  node("auto-open").checked = !!reply.preferences?.autoOpen;
 })();

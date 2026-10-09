@@ -1,6 +1,19 @@
 "use strict";
-importScripts("core.js", "resolver.js", "fetch-transport.js");
+importScripts("core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js");
 const Core = globalThis.AdSkipCore;
+const Ads = globalThis.AdSkipAds;
+const filters = globalThis.AdSkipAdSettings.create(chrome.storage.local, chrome.declarativeNetRequest);
+const syncFilters = () => { void filters.reconcile().catch(() => {}); };
+// Chrome resets static enabled rulesets on upgrade; stored choices are authoritative.
+syncFilters();
+chrome.runtime.onInstalled.addListener(syncFilters);
+chrome.runtime.onStartup.addListener(syncFilters);
+chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && changes.adFilters) syncFilters(); });
+async function preferences() {
+  const stored = await chrome.storage.local.get({ autoOpen: false, adFilters: null });
+  try { return { autoOpen: !!stored.autoOpen, adFilters: await filters.reconcile() }; }
+  catch { return { autoOpen: !!stored.autoOpen, adFilters: Ads.normalize(stored.adFilters), adFilterError: "Chưa áp dụng được bộ lọc quảng cáo. Thử bật/tắt lại." }; }
+}
 const INPUT = "input";
 const jobs = new Map();
 const writes = new Map();
@@ -118,6 +131,14 @@ function run(target, url, hints = {}, metadata = {}) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !message || typeof message.type !== "string") return;
   const fromExtensionPage = typeof sender.url === "string" && sender.url.startsWith(chrome.runtime.getURL(""));
+  if (message.type === "ADSKIP_AD_FILTER") {
+    let permitted = fromExtensionPage;
+    try { permitted ||= Core.serviceOf(sender.url || "") === message.service && (!sender.frameId || sender.frameId === 0); } catch { /* Invalid sender. */ }
+    if (!permitted) { sendResponse({ error: "Chỉ thay đổi bộ lọc của dịch vụ đang mở." }); return; }
+    filters.set(message.service, message.enabled).then((adFilters) => sendResponse({ ok: true, adFilters })).catch((error) =>
+      sendResponse({ error: error instanceof Core.AdSkipError ? error.message : "Chưa lưu được bộ lọc quảng cáo. Thử lại.", code: error.code || "FILTER_ERROR" }));
+    return true;
+  }
   if (message.source === INPUT && !fromExtensionPage) { sendResponse({ error: "Thao tác nhập link chỉ có trong popup." }); return; }
   const tabId = fromExtensionPage ? message.tabId : sender.tab?.id;
   let target = message.source === INPUT ? INPUT : tabId;
@@ -126,7 +147,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "ADSKIP_GET") {
       const inputState = fromExtensionPage ? await stateOf(INPUT) : undefined;
       if (fromExtensionPage && message.restore && (await chrome.storage.session.get("popupSource")).popupSource === INPUT && inputState.phase !== "idle") target = INPUT;
-      return { state: target === INPUT ? inputState || await stateOf(INPUT) : await currentTabState(tabId), inputState, source: target === INPUT ? INPUT : "tab", preferences: await chrome.storage.local.get({ autoOpen: false }) };
+      return { state: target === INPUT ? inputState || await stateOf(INPUT) : await currentTabState(tabId), inputState, source: target === INPUT ? INPUT : "tab", preferences: await preferences() };
     }
     if (message.type === "ADSKIP_STOP") {
       const job = jobs.get(target); const version = stopJob(target);

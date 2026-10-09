@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         AdSkip: 1short & EZ4Short
 // @namespace    local.adskip
-// @version      0.2.0
-// @description  Tìm trang đích của các dạng 1shortlink và EZ4Short đã kiểm chứng.
+// @version      0.3.0
+// @description  Tìm trang đích của 1shortlink, EZ4Short và ẩn khung quảng cáo theo dịch vụ.
 // @match        https://1shortlink.com/*
 // @match        https://www.1shortlink.com/*
 // @match        https://ez4short.com/*
@@ -17,6 +17,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_setClipboard
+// @grant        GM_addValueChangeListener
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
@@ -29,7 +30,7 @@
   else root.AdSkipCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const VERSION = "0.2.0";
+  const VERSION = "0.3.0";
   const SERVICE_HOSTS = new Set(["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net"]);
   const FILE_HOSTS = ["vexfile.com", "gofile.io", "gofile.me", "disk.yandex.ru", "disk.yandex.com", "yadi.sk"];
 
@@ -149,15 +150,46 @@
     return urlOf(data.redirect_url, pageUrl).href;
   }
   function buttonCandidate(html, pageUrl) {
-    for (const tag of html.match(/<[^>]*\bid=["']redirect-link["'][^>]*>/gi) || []) {
-      const match = /\bdata-href=["']([^"']+)["']/i.exec(tag);
-      if (match) return urlOf(decodeEntities(match[1]), pageUrl).href;
+    const service = serviceOf(pageUrl);
+    if (!["1short", "ez4short"].includes(service)) return null;
+    // Ignore inert markup and JavaScript strings that resemble link controls.
+    const markup = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+    const candidates = new Set();
+    for (const tag of markup.matchAll(/<(?:a|button)\b([^>]*)>/gi)) {
+      const attributes = Object.create(null);
+      for (const attribute of tag[1].matchAll(/([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+        const name = attribute[1].toLowerCase();
+        if (!(name in attributes)) attributes[name] = decodeEntities(attribute[2] ?? attribute[3] ?? attribute[4] ?? "");
+      }
+      const classes = (attributes.class || "").split(/\s+/);
+      const recognized = service === "1short" ? attributes.id === "redirect-link" :
+        ["redirect-link", "get-link", "go-link"].includes(attributes.id) || classes.includes("get-link");
+      if (!recognized || "disabled" in attributes || "hidden" in attributes ||
+          /^true$/i.test(attributes["aria-disabled"] || "") || /^true$/i.test(attributes["aria-hidden"] || "") ||
+          classes.some((name) => ["disabled", "link-disabled"].includes(name)) ||
+          /(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(attributes.style || "")) continue;
+      const value = attributes["data-href"] || (service === "ez4short" && attributes.href);
+      if (!value || value.startsWith("#")) continue;
+      let target;
+      try { target = urlOf(value, pageUrl).href; } catch { continue; }
+      if (visitKey(target) === visitKey(pageUrl)) continue;
+      if (service === "ez4short" && serviceOf(target) === "unknown") continue;
+      candidates.add(target);
     }
-    return null;
+    if (candidates.size > 1) throw new AdSkipError("AMBIGUOUS_TARGET", "Trang cung cấp nhiều URL đích khác nhau. Mở bước hiện tại để kiểm tra.");
+    return candidates.values().next().value || null;
+  }
+  function ez4Alias(input) {
+    const url = urlOf(input);
+    if (serviceOf(url) !== "ez4short" || !/^\/[a-z0-9_-]{1,128}\/?$/i.test(url.pathname)) return false;
+    const name = url.pathname.split("/")[1].toLowerCase();
+    return !["st", "api", "admin", "auth", "login", "logout", "register", "dashboard", "users", "profile", "account", "links", "pages", "tools", "contact", "privacy", "terms"].includes(name);
   }
   function canRequest(input, method = "GET") {
     const url = urlOf(input);
-    if (serviceOf(url) !== "1short" || (url.port && url.port !== "443")) return false;
+    if (url.port && url.port !== "443") return false;
+    if (serviceOf(url) === "ez4short") return method === "GET" && ez4Alias(url.href);
+    if (serviceOf(url) !== "1short") return false;
     if (method === "POST") return url.pathname === "/get-link-download" && !url.search && !url.hash;
     return method === "GET" && (url.pathname === "/redirect-link" || url.pathname.startsWith("/link-encrypted/") || /^\/ll\/[^/]+\/?$/.test(url.pathname));
   }
@@ -170,14 +202,80 @@
     if (response.status < 200 || response.status >= 300) return new AdSkipError("HTTP_ERROR", "Trang trung gian trả HTTP " + response.status + ". Thử lại sau.");
     return null;
   }
-  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
+  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, ez4Alias, canRequest, httpError };
 });
 
 
 (function (root, factory) {
   if (typeof module === "object" && module.exports) module.exports = factory(require("./core.js"));
-  else root.AdSkipResolver = factory(root.AdSkipCore);
+  else root.AdSkipAdapters = factory(root.AdSkipCore);
 })(typeof globalThis !== "undefined" ? globalThis : this, function (Core) {
+  "use strict";
+  const manual = (code, message) => ({ phase: "manual", code, message });
+  async function pageOf(url, context) {
+    const page = context.hints.initialHtml ? { status: 200, finalUrl: url, text: context.hints.initialHtml } : await context.request(url);
+    if (page.finalUrl && Core.visitKey(page.finalUrl) !== Core.visitKey(url)) return { next: Core.urlOf(page.finalUrl).href };
+    const error = Core.httpError(page); if (error) throw error;
+    return { html: page.text || "" };
+  }
+  const registry = {
+    "1short": {
+      embedded: Core.oneShortDestination,
+      embeddedLabel: "Đọc URL đích từ link full-pages",
+      async advance(url, context) {
+        if (context.hints.initialCandidate) {
+          context.emit("Đọc URL mà trang 1short đã nhận", url);
+          return { next: Core.urlOf(context.hints.initialCandidate, url).href };
+        }
+        if (!Core.canRequest(url)) return manual("UNSUPPORTED_PATH", "Dạng đường dẫn 1short này chưa được hỗ trợ.");
+        context.emit(Core.urlOf(url).pathname === "/redirect-link" ? "Theo chuyển hướng 1short" : "Đọc trang 1short", url);
+        const page = await pageOf(url, context);
+        if (page.next) return page;
+        const candidate = Core.buttonCandidate(page.html, url);
+        if (candidate) return { next: candidate };
+        const init = Core.oneShortInit(page.html, url);
+        if (!init) return manual("FORM_NOT_FOUND", "Chưa thấy dữ liệu lấy link. Trang có thể yêu cầu mật khẩu, xác minh hoặc đã thay đổi giao diện.");
+        context.emit("Yêu cầu URL kế tiếp từ 1short", url);
+        const reply = await context.request(init.endpoint, { method: "POST", fields: init.fields });
+        const error = Core.httpError(reply); if (error) throw error;
+        return { next: Core.oneShortReply(reply.text, url) };
+      }
+    },
+    ez4short: {
+      embedded: Core.ez4Destination,
+      embeddedLabel: "Đọc URL đích từ EZ4Short",
+      async advance(url, context) {
+        if (!Core.ez4Alias(url)) return manual("UNSUPPORTED_PATH", "Dạng đường dẫn EZ4Short này chưa được hỗ trợ. Dùng link dạng mã ngắn hoặc /st có URL đích.");
+        if (context.hints.initialCandidate) {
+          const next = Core.urlOf(context.hints.initialCandidate, url).href;
+          if (Core.serviceOf(next) !== "unknown" && Core.visitKey(next) !== Core.visitKey(url)) {
+            context.emit("Đọc URL mà trang EZ4Short đã cung cấp", url);
+            return { next };
+          }
+        }
+        context.emit("Đọc link dạng ngắn EZ4Short", url);
+        const page = await pageOf(url, context);
+        if (page.next) return page;
+        const candidate = Core.buttonCandidate(page.html, url);
+        if (candidate) return { next: candidate };
+        return manual("EZ4_ALIAS", "Trang EZ4Short chưa cung cấp URL đích trên nút lấy link. Hoàn tất thao tác trên trang rồi chọn Tiếp tục kiểm tra.");
+      }
+    },
+    tech8s: {
+      async advance(url, context) {
+        context.emit("Bài viết trung gian Tech8s", url);
+        return manual("ARTICLE_WITHOUT_CONTEXT", "URL bài viết chưa đủ để xác định file. Bắt đầu từ link 1short hoặc EZ4Short gốc.");
+      }
+    }
+  };
+  return { forUrl(url) { return registry[Core.serviceOf(url)] || null; } };
+});
+
+
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory(require("./core.js"), require("./adapters.js"));
+  else root.AdSkipResolver = factory(root.AdSkipCore, root.AdSkipAdapters);
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Core, Adapters) {
   "use strict";
   async function resolve(startUrl, options = {}) {
     const steps = [];
@@ -211,42 +309,16 @@
           emit("Đã tìm địa chỉ đích", cursor);
           return finish("resolved", "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.", cursor);
         }
-        if (service === "ez4short") {
-          const target = Core.ez4Destination(cursor);
-          if (target) { emit("Đọc URL đích từ EZ4Short", cursor); cursor = target; continue; }
-          emit("Cần thao tác trên EZ4Short", cursor);
-          return finish("manual", "Dạng mã ngắn EZ4Short chưa được hỗ trợ. Hoàn tất bước trên trang; tool sẽ nhận URL nếu trang chuyển tới dạng /st có đích.", cursor, "EZ4_ALIAS");
-        }
-        if (service === "tech8s") {
-          emit("Bài viết trung gian Tech8s", cursor);
-          return finish("manual", "URL bài viết chưa đủ để xác định file. Bắt đầu từ link 1short hoặc EZ4Short gốc.", cursor, "ARTICLE_WITHOUT_CONTEXT");
-        }
-        if (service !== "1short") {
+        const adapter = Adapters.forUrl(cursor);
+        if (!adapter) {
           emit("Gặp dịch vụ chưa hỗ trợ", cursor);
           return finish("manual", "Đã tìm được bước kế tiếp nhưng dịch vụ này chưa được hỗ trợ.", cursor, "UNSUPPORTED_HOST");
         }
-        const embedded = Core.oneShortDestination(cursor);
-        if (embedded) { emit("Đọc URL đích từ link full-pages", cursor); cursor = embedded; continue; }
-        if (hop === 0 && options.initialCandidate) {
-          emit("Đọc URL mà trang 1short đã nhận", cursor);
-          cursor = Core.urlOf(options.initialCandidate, cursor).href;
-          continue;
-        }
-        if (!Core.canRequest(cursor)) return finish("manual", "Dạng đường dẫn 1short này chưa được hỗ trợ.", cursor, "UNSUPPORTED_PATH");
-        emit(Core.urlOf(cursor).pathname === "/redirect-link" ? "Theo chuyển hướng 1short" : "Đọc trang 1short", cursor);
-        const page = hop === 0 && options.initialHtml ? { status: 200, finalUrl: cursor, text: options.initialHtml } : await request(cursor);
-        if (page.finalUrl && Core.visitKey(page.finalUrl) !== key) { cursor = Core.urlOf(page.finalUrl).href; continue; }
-        const pageError = Core.httpError(page);
-        if (pageError) throw pageError;
-        const candidate = Core.buttonCandidate(page.text || "", cursor);
-        if (candidate) { cursor = candidate; continue; }
-        const init = Core.oneShortInit(page.text || "", cursor);
-        if (!init) return finish("manual", "Chưa thấy dữ liệu lấy link. Trang có thể yêu cầu mật khẩu, xác minh hoặc đã thay đổi giao diện.", cursor, "FORM_NOT_FOUND");
-        emit("Yêu cầu URL kế tiếp từ 1short", cursor);
-        const reply = await request(init.endpoint, { method: "POST", fields: init.fields });
-        const replyError = Core.httpError(reply);
-        if (replyError) throw replyError;
-        cursor = Core.oneShortReply(reply.text, cursor);
+        const embedded = adapter.embedded?.(cursor);
+        if (embedded) { emit(adapter.embeddedLabel, cursor); cursor = embedded; continue; }
+        const result = await adapter.advance(cursor, { request, emit, hints: hop === 0 ? options : {} });
+        if (!result.next) return finish(result.phase, result.message, cursor, result.code);
+        cursor = Core.urlOf(result.next, cursor).href;
       }
       return finish("manual", "Chuỗi vượt quá " + maxHops + " bước. Đã dừng xử lý.", cursor, "HOP_LIMIT");
     } catch (error) {
@@ -256,6 +328,77 @@
     }
   }
   return { resolve };
+});
+
+
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory(require("./core.js"));
+  else root.AdSkipAds = factory(root.AdSkipCore);
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Core) {
+  "use strict";
+  const common = ["googlesyndication.com", "doubleclick.net"];
+  const services = [
+    { id: "1short", label: "1shortlink", hosts: ["1shortlink.com", "www.1shortlink.com"], domains: [...common, "3nbf4.com", "jhnwr.com", "forfrogadiertor.com"] },
+    { id: "ez4short", label: "EZ4Short", hosts: ["ez4short.com", "www.ez4short.com"], domains: common },
+    { id: "tech8s", label: "Tech8s", hosts: ["tech8s.net", "www.tech8s.net"], domains: common }
+  ];
+  function normalize(value) { return Object.fromEntries(services.map(({ id }) => [id, typeof value?.[id] === "boolean" ? value[id] : true])); }
+  function rules(service) {
+    return [{ id: 1, priority: 1, action: { type: "block" }, condition: {
+      initiatorDomains: service.hosts, requestDomains: service.domains,
+      resourceTypes: ["script", "image", "xmlhttprequest", "sub_frame", "ping", "media", "other"]
+    } }];
+  }
+  function isAdUrl(value, serviceId) {
+    const service = services.find(({ id }) => id === serviceId);
+    if (!service) return false;
+    let url; try { url = new URL(value, "https://" + service.hosts[0] + "/"); } catch { return false; }
+    return ["http:", "https:"].includes(url.protocol) && service.domains.some((domain) => Core.hostIs(url.hostname, domain));
+  }
+  function mount(document, serviceId, enabled = true, onCount = () => {}) {
+    if (!services.some(({ id }) => id === serviceId)) return { setEnabled() {}, dispose() {} };
+    const marker = "data-adskip-ad-hidden";
+    const marked = new Map();
+    let active = false; let observer; let style; let scheduled = false;
+    const restore = (node) => {
+      const previous = marked.get(node);
+      if (previous === null) node.removeAttribute(marker); else node.setAttribute(marker, previous);
+      marked.delete(node);
+    };
+    const scan = () => {
+      if (!active) return;
+      const wanted = new Set([...document.querySelectorAll("iframe[src],img[src],ins.adsbygoogle")].filter((node) =>
+        node.matches("ins.adsbygoogle") || isAdUrl(node.getAttribute("src"), serviceId)));
+      for (const node of marked.keys()) if (!wanted.has(node)) restore(node);
+      for (const node of wanted) if (!marked.has(node)) {
+        marked.set(node, node.getAttribute(marker)); node.setAttribute(marker, "true");
+      }
+      onCount(marked.size);
+    };
+    const schedule = () => {
+      if (scheduled) return; scheduled = true;
+      queueMicrotask(() => { scheduled = false; scan(); });
+    };
+    function setEnabled(value) {
+      if (!!value === active) return;
+      active = !!value;
+      if (active) {
+        style = document.createElement("style");
+        style.textContent = '[' + marker + '="true"]{display:none!important}';
+        (document.head || document.documentElement).append(style);
+        observer = new MutationObserver(schedule);
+        observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["src", "class"] });
+        scan();
+      } else {
+        observer?.disconnect(); style?.remove();
+        for (const node of marked.keys()) restore(node);
+        onCount(0);
+      }
+    }
+    setEnabled(enabled);
+    return { setEnabled, dispose() { setEnabled(false); } };
+  }
+  return { services, normalize, rules, isAdUrl, mount };
 });
 
 
@@ -304,7 +447,7 @@
     document.body.append(main);
     return target;
   }
-  function mount(handlers, autoOpen = false) {
+  function mount(handlers, autoOpen = false, adFilter) {
     const previous = document.getElementById("adskip-widget");
     if (previous) return null;
     const host = document.createElement("div");
@@ -342,10 +485,16 @@
     const checkbox = element("input"); checkbox.type = "checkbox"; checkbox.checked = autoOpen;
     const preferenceText = element("span", "Mở trang đích khi tìm được");
     preference.append(checkbox, preferenceText);
+    const adPreference = element("label", undefined, "preferences");
+    const adCheckbox = element("input"); adCheckbox.type = "checkbox"; adCheckbox.checked = !!adFilter?.enabled;
+    adPreference.append(adCheckbox, element("span", adFilter?.label || "Lọc quảng cáo"));
+    const adHelp = element("p", adFilter?.help || "", "ad-help");
+    adHelp.style.cssText = "font-size:11px;line-height:1.5;color:#5a687e;margin:5px 0 0";
+    if (!adFilter) { adPreference.classList.add("hidden"); adHelp.classList.add("hidden"); }
     const details = element("details"); const summary = element("summary", "Các bước đã xử lý");
     const steps = element("ol", undefined, "steps"); details.append(summary, steps);
     const toast = element("p", "", "toast"); toast.setAttribute("role", "status");
-    body.append(status, message, guidance, destination, actions, preference, details, toast);
+    body.append(status, message, guidance, destination, actions, preference, adPreference, adHelp, details, toast);
     panel.append(header, body);
     const launcher = element("button", "AdSkip", "launcher hidden");
     launcher.type = "button"; launcher.setAttribute("aria-label", "Mở bảng AdSkip");
@@ -359,6 +508,14 @@
     resume.addEventListener("click", () => (handlers.onContinue || handlers.onStart)());
     stop.addEventListener("click", () => handlers.onStop());
     checkbox.addEventListener("change", () => handlers.onPreference(checkbox.checked));
+    adCheckbox.addEventListener("change", async () => {
+      const requested = adCheckbox.checked; adCheckbox.disabled = true;
+      try {
+        const reply = await handlers.onAdFilter(requested);
+        if (reply?.error) throw new Error(reply.error);
+      } catch (error) { adCheckbox.checked = !requested; toast.textContent = error.message || "Chưa lưu được tùy chọn quảng cáo."; }
+      finally { adCheckbox.disabled = false; }
+    });
     copy.addEventListener("click", async () => {
       try { await handlers.onCopy(state.url); toast.textContent = "Đã sao chép địa chỉ."; }
       catch { toast.textContent = "Chưa sao chép được. Mở link rồi sao chép từ thanh địa chỉ."; }
@@ -393,10 +550,12 @@
         item.append(element("span", step.url, "step-url")); steps.append(item);
       }
     }
-    return { render, setPreference(value) { checkbox.checked = !!value; }, host, shadow };
+    return { render, setPreference(value) { checkbox.checked = !!value; }, setAdFilter(value) { adCheckbox.checked = !!value; }, host, shadow };
   }
   async function pageHints(signal, waitMs = 8000) {
-    if (Core.serviceOf(location.href) !== "1short") return {};
+    const service = Core.serviceOf(location.href);
+    if (!["1short", "ez4short"].includes(service)) return {};
+    if (Core.oneShortDestination(location.href) || Core.ez4Destination(location.href)) return {};
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     if (document.readyState === "loading") await new Promise((resolve, reject) => {
       let timer;
@@ -408,15 +567,19 @@
       timer = setTimeout(ready, waitMs);
       if (signal?.aborted) abort();
     });
-    const candidate = () => document.getElementById("redirect-link")?.getAttribute("data-href");
+    const selector = service === "1short" ? "#redirect-link" : "a#redirect-link,button#redirect-link,a#get-link,button#get-link,a#go-link,button#go-link,a.get-link,button.get-link";
+    const candidate = () => {
+      try { return Core.buttonCandidate([...document.querySelectorAll(selector)].map((node) => node.outerHTML).join("\n"), location.href); }
+      catch { return null; }
+    };
     let result = candidate();
-    if (!result && document.getElementById("redirect-link")) {
+    if (!result && document.querySelector(selector)) {
       result = await new Promise((resolve) => {
         let timer;
         const finish = (value) => { observer.disconnect(); clearTimeout(timer); signal?.removeEventListener("abort", abort); resolve(value); };
         const observer = new MutationObserver(() => { const value = candidate(); if (value) finish(value); });
         const abort = () => finish(null);
-        observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href"], childList: true });
+        observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href", "href", "class", "disabled", "aria-disabled", "hidden", "style"], childList: true });
         timer = setTimeout(() => finish(null), waitMs);
         if (signal?.aborted) finish(null); else signal?.addEventListener("abort", abort, { once: true });
       });
@@ -432,6 +595,7 @@
   const Core = globalThis.AdSkipCore;
   const Resolver = globalThis.AdSkipResolver;
   const Panel = globalThis.AdSkipPanel;
+  const Ads = globalThis.AdSkipAds;
   if (window.top !== window || !Core.SERVICE_HOSTS.has(location.hostname)) return;
   Panel.prepareEz4Page();
   if (!document.documentElement) await new Promise((resolve) => {
@@ -439,6 +603,9 @@
     observer.observe(document, { childList: true });
   });
   let autoOpen = !!GM_getValue("autoOpen", false);
+  const service = Core.serviceOf(location.href);
+  const label = Ads.services.find(({ id }) => id === service).label;
+  const ads = Ads.mount(document, service, Ads.normalize(GM_getValue("adFilters", null))[service]);
   let controller;
   let generation = 0;
   let lastResult;
@@ -466,9 +633,17 @@
     onContinue: start,
     onStop() { generation++; controller?.abort(); lastResult = null; panel.render({ phase: "stopped", message: "Đã dừng xử lý.", code: "CANCELLED", steps: [] }); },
     onPreference(value) { autoOpen = value; GM_setValue("autoOpen", value); maybeOpen(); },
+    async onAdFilter(enabled) {
+      const next = { ...Ads.normalize(GM_getValue("adFilters", null)), [service]: enabled };
+      await GM_setValue("adFilters", next); ads.setEnabled(enabled);
+      return { adFilters: next };
+    },
     onCopy(url) { GM_setClipboard(url, "text"); }
-  }, autoOpen);
+  }, autoOpen, { enabled: Ads.normalize(GM_getValue("adFilters", null))[service], label: "Ẩn khung quảng cáo trên " + label, help: "Ẩn khung đã nhận diện; không chặn kết nối mạng." });
   if (!panel) return;
+  if (typeof GM_addValueChangeListener === "function") GM_addValueChangeListener("adFilters", (name, oldValue, newValue) => {
+    const enabled = Ads.normalize(newValue)[service]; ads.setEnabled(enabled); panel.setAdFilter(enabled);
+  });
   async function start() {
     controller?.abort(); controller = new AbortController();
     const current = ++generation;

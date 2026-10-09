@@ -25,8 +25,9 @@ function harness(options = {}) {
     async remove(key) { delete data[key]; }
   });
   const chrome = {
-    runtime: { id: "qa", getURL: (file) => "chrome-extension://qa/" + file, onMessage: event() },
-    storage: { session: area(session), local: area(local) },
+    runtime: { id: "qa", getURL: (file) => "chrome-extension://qa/" + file, onMessage: event(), onInstalled: event(), onStartup: event() },
+    storage: { session: area(session), local: area(local), onChanged: event() },
+    declarativeNetRequest: { enabled: [], async updateEnabledRulesets(update) { this.enabled = Array.from(update.enableRulesetIds); } },
     action: { async setBadgeText() {}, async setBadgeBackgroundColor() {} },
     webNavigation: { onBeforeNavigate: event() },
     tabs: {
@@ -51,7 +52,7 @@ function harness(options = {}) {
       if (keepAlive !== true && !responded) resolve(undefined);
     } catch (error) { reject(error); }
   });
-  return { send, session, tabs, opened, navigated, requests, chrome, content };
+  return { send, session, local, tabs, opened, navigated, requests, chrome, content };
 }
 async function until(predicate) { for (let count = 0; count < 100; count++) { if (predicate()) return; await tick(); } throw new Error("Background state did not arrive"); }
 
@@ -157,4 +158,24 @@ test("a message from a document that already navigated away does not start reque
   const h = harness(); const sender = h.content(); h.tabs.get(1).url = "https://1shortlink.com/ll/new";
   await h.send({ type: "ADSKIP_RESOLVE", hints: { initialCandidate: st } }, sender);
   assert.equal(h.requests.length, 0); assert.equal(h.session["tab:1"], undefined);
+});
+
+test("popup ad choices are independent of the current tab and auto-open, while content changes are service scoped", async () => {
+  const h = harness({ local: { autoOpen: true } });
+  const popup = await h.send({ type: "ADSKIP_AD_FILTER", service: "ez4short", enabled: false });
+  assert.equal(popup.ok, true); assert.equal(h.local.autoOpen, true);
+  assert.equal((await h.send({ type: "ADSKIP_AD_FILTER", service: "tech8s", enabled: false }, h.content())).ok, undefined);
+  assert.equal((await h.send({ type: "ADSKIP_AD_FILTER", service: "1short", enabled: false }, h.content())).ok, true);
+  assert.equal((await h.send({ type: "ADSKIP_AD_FILTER", service: "1short", enabled: "false" })).code, "INVALID_FILTER");
+  const result = await h.send({ type: "ADSKIP_GET", tabId: 1 });
+  assert.equal(result.preferences.adFilters.tech8s, true); assert.equal(result.preferences.adFilters.ez4short, false);
+});
+
+test("installed and startup events reapply stored ad choices after static rules reset", async () => {
+  const h = harness({ local: { adFilters: { "1short": false, ez4short: true, tech8s: false } } });
+  for (const eventName of ["onInstalled", "onStartup"]) {
+    h.chrome.declarativeNetRequest.enabled = ["1short", "ez4short", "tech8s"];
+    h.chrome.runtime[eventName].emit({ reason: "update" });
+    await until(() => h.chrome.declarativeNetRequest.enabled.join() === "ez4short");
+  }
 });

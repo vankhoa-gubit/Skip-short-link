@@ -1,0 +1,31 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "block"
+    },
+    "condition": {
+      "initiatorDomains": [
+        "1shortlink.com",
+        "www.1shortlink.com"
+      ],
+      "requestDomains": [
+        "googlesyndication.com",
+        "doubleclick.net",
+        "3nbf4.com",
+        "jhnwr.com",
+        "forfrogadiertor.com"
+      ],
+      "resourceTypes": [
+        "script",
+        "image",
+        "xmlhttprequest",
+        "sub_frame",
+        "ping",
+        "media",
+        "other"
+      ]
+    }
+  }
+]

@@ -56,11 +56,50 @@ test("abort discards an in-flight successful reply", async () => {
   const result = await resolve(input, { signal: controller.signal, request: async () => { controller.abort(); return { status: 200, text: html, finalUrl: input }; } });
   assert.equal(result.phase, "stopped"); assert.equal(result.code, "CANCELLED");
 });
-test("expired aliases, unsupported EZ4 aliases and bare articles are explicit", async () => {
+test("expired aliases, unavailable EZ4 targets and bare articles are explicit", async () => {
   const expired = await resolve(input, { request: async () => ({ status: 404, finalUrl: input, text: "" }) });
   assert.equal(expired.code, "EXPIRED_LINK");
-  assert.equal((await resolve("https://ez4short.com/some-alias")).code, "EZ4_ALIAS");
+  assert.equal((await resolve("https://ez4short.com/some-alias", { request: async (url) => ({ status: 200, finalUrl: url, text: "<h1>Verification required</h1>" }) })).code, "EZ4_ALIAS");
   assert.equal((await resolve("https://tech8s.net/article/")).code, "ARTICLE_WITHOUT_CONTEXT");
+});
+
+test("EZ4 alias follows an available HTTP redirect into /st", async () => {
+  let calls = 0;
+  const result = await resolve("https://ez4short.com/alias", { request: async () => { calls++; return { status: 200, finalUrl: st, text: "" }; } });
+  assert.equal(result.phase, "resolved"); assert.equal(result.url, destination); assert.equal(calls, 1);
+});
+
+test("EZ4 alias reads a final control from bounded HTML, including a signed fragment", async () => {
+  const signed = destination + "&part=2#download"; const calls = [];
+  const result = await resolve("https://www.ez4short.com/alias", { request: async (url, config) => { calls.push(config.method || "GET"); return { status: 200, finalUrl: url, text: "<a class='get-link' href='" + signed.replace("&", "&amp;") + "'>Get link</a>" }; } });
+  assert.equal(result.url, signed); assert.equal(result.phase, "resolved"); assert.deepEqual(calls, ["GET"]);
+});
+
+test("fresh EZ4 DOM continuation avoids a repeated request", async () => {
+  const result = await resolve("https://ez4short.com/alias", { initialCandidate: destination, request() { throw new Error("No request expected"); } });
+  assert.equal(result.url, destination); assert.equal(result.phase, "resolved");
+});
+
+test("EZ4 forms and countdown controls remain manual without POST or guessed endpoints", async () => {
+  const result = await resolve("https://ez4short.com/alias", { initialHtml: "<form id='go-link' action='/links/go'></form><a class='get-link disabled' href='" + destination + "'>Wait</a>", request() { throw new Error("No request expected"); } });
+  assert.equal(result.phase, "manual"); assert.equal(result.code, "EZ4_ALIAS");
+  const unsupported = await resolve("https://ez4short.com/logout", { request() { throw new Error("No request allowed"); } });
+  assert.equal(unsupported.code, "UNSUPPORTED_PATH");
+});
+
+test("EZ4 errors, loops, oversized responses and cancellation retain resolver bounds", async () => {
+  const alias = "https://ez4short.com/alias";
+  for (const [status, code, phase] of [[403, "NEEDS_VERIFICATION", "manual"], [410, "EXPIRED_LINK", "error"], [429, "RATE_LIMITED", "error"]]) {
+    const result = await resolve(alias, { request: async () => ({ status, finalUrl: alias, text: "" }) });
+    assert.equal(result.code, code); assert.equal(result.phase, phase);
+  }
+  const loop = await resolve(alias, { request: async (url) => ({ status: 200, finalUrl: url.endsWith("alias") ? "https://ez4short.com/other" : alias, text: "" }) });
+  assert.equal(loop.code, "LOOP");
+  const oversized = await resolve(alias, { request: async () => ({ status: 200, finalUrl: alias, text: "x".repeat(1048577) }) });
+  assert.equal(oversized.code, "RESPONSE_TOO_LARGE");
+  const controller = new AbortController();
+  const cancelled = await resolve(alias, { signal: controller.signal, request: async () => { controller.abort(); return { status: 200, finalUrl: st, text: "" }; } });
+  assert.equal(cancelled.code, "CANCELLED");
 });
 test("unknown hosts stop before any request or automatic navigation", async () => {
   const result = await resolve(input, { initialCandidate: "https://unknown.example/continue", request() { throw new Error("No request allowed"); } });

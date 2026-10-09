@@ -1,6 +1,7 @@
 (async function () {
   "use strict";
   const Core = globalThis.AdSkipCore;
+  const Ads = globalThis.AdSkipAds;
   if (window.top !== window || !Core.SERVICE_HOSTS.has(location.hostname)) return;
   globalThis.AdSkipPanel.prepareEz4Page();
   if (!document.documentElement) await new Promise((resolve) => {
@@ -10,6 +11,9 @@
   let generation = 0; let controller;
   const send = (message) => chrome.runtime.sendMessage(message);
   const existing = await send({ type: "ADSKIP_GET" }).catch(() => ({}));
+  const service = Core.serviceOf(location.href);
+  const label = Ads.services.find(({ id }) => id === service).label;
+  const ads = Ads.mount(document, service, Ads.normalize(existing.preferences?.adFilters)[service]);
   const panel = globalThis.AdSkipPanel.mount({
     onStart: start,
     onContinue: start,
@@ -19,9 +23,19 @@
       await send({ type: "ADSKIP_STOP" }).catch(() => {});
     },
     onPreference(autoOpen) { return send({ type: "ADSKIP_PREFERENCE", autoOpen }); },
+    async onAdFilter(enabled) {
+      const reply = await send({ type: "ADSKIP_AD_FILTER", service, enabled });
+      if (reply.ok) ads.setEnabled(reply.adFilters[service]);
+      return reply;
+    },
     onCopy(url) { return navigator.clipboard.writeText(url); }
-  }, existing.preferences?.autoOpen);
+  }, existing.preferences?.autoOpen, { enabled: Ads.normalize(existing.preferences?.adFilters)[service], label: "Chặn quảng cáo trên " + label, help: "Chỉ lọc quảng cáo đã nhận diện của dịch vụ này." });
   if (!panel) return;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (changes.autoOpen) panel.setPreference(changes.autoOpen.newValue);
+    if (changes.adFilters) { const enabled = Ads.normalize(changes.adFilters.newValue)[service]; ads.setEnabled(enabled); panel.setAdFilter(enabled); }
+  });
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id) return;
     if (message.type === "ADSKIP_STATE") panel.render(message.state);

@@ -16,8 +16,8 @@ fs.mkdirSync(dist, { recursive: true });
 const header = `// ==UserScript==
 // @name         AdSkip: 1short & EZ4Short
 // @namespace    local.adskip
-// @version      0.2.0
-// @description  Tìm trang đích của các dạng 1shortlink và EZ4Short đã kiểm chứng.
+// @version      0.3.0
+// @description  Tìm trang đích của 1shortlink, EZ4Short và ẩn khung quảng cáo theo dịch vụ.
 // @match        https://1shortlink.com/*
 // @match        https://www.1shortlink.com/*
 // @match        https://ez4short.com/*
@@ -32,14 +32,18 @@ const header = `// ==UserScript==
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_setClipboard
+// @grant        GM_addValueChangeListener
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
 `;
-const shared = ["core.js", "resolver.js", "panel.js"].map(read).join("\n\n");
+const shared = ["core.js", "adapters.js", "resolver.js", "ads.js", "panel.js"].map(read).join("\n\n");
 fs.writeFileSync(path.join(dist, "adskip.user.js"), header + "\n(function () {\n" + shared + "\n" + read("userscript-entry.js") + "\n})();\n", "utf8");
 const extension = path.join(root, "extension");
 if (fs.existsSync(path.join(extension, "manifest.json"))) {
-  for (const name of ["core.js", "resolver.js", "fetch-transport.js", "panel.js"]) fs.writeFileSync(path.join(extension, name), read(name));
+  for (const name of ["core.js", "adapters.js", "resolver.js", "fetch-transport.js", "ads.js", "ad-settings.js", "panel.js"]) fs.writeFileSync(path.join(extension, name), read(name));
+  const Ads = require("../src/ads.js");
+  const rules = path.join(extension, "rules"); fs.mkdirSync(rules, { recursive: true });
+  for (const service of Ads.services) fs.writeFileSync(path.join(rules, service.id + ".json"), JSON.stringify(Ads.rules(service), null, 2) + "\n");
 }
 console.log("Built dist/adskip.user.js" + (fs.existsSync(path.join(extension, "manifest.json")) ? " and extension shared modules" : ""));

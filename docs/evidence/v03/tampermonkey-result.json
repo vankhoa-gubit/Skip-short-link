@@ -1,0 +1,142 @@
+{
+  "checkedAt": "2026-10-09T09:35:17.292Z",
+  "mode": "Official Tampermonkey installed unpacked in isolated Chromium; bundle saved through its editor; real GM APIs and local HTTPS fixture server; test certificate and browser-only host mapping",
+  "outcome": "PASS",
+  "checks": [
+    "Bundle installed through Tampermonkey's real editor and native userscript permission",
+    "Real GM_xmlhttpRequest POST includes current CSRF and session cookie, follows redirect and preserves signed destination",
+    "Installed Tampermonkey widget fits 390 × 844",
+    "Installed userscript continues with new DOM after manual action",
+    "Installed userscript decodes full-pages and keeps the fragment without a GM request",
+    "Real userscript reads enabled EZ4 alias control with signed query/fragment; cosmetic filtering hides advertising frames/slots but leaves verification visible and does not block network requests",
+    "Real GM storage persists the per-service choice; turning it off restores elements and GM value-change listeners synchronize another open tab",
+    "Mutation filtering hides a newly inserted ad frame and restores it when its source changes to a verification resource",
+    "Real installed userscript captures an EZ4 alias HTTP redirect into /st",
+    "Real installed userscript keeps a locked EZ4 alias manual and resolves only after user action and fresh DOM continuation"
+  ],
+  "errors": [],
+  "exchanges": [
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/link-encrypted/tamper-fixture"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "POST",
+      "path": "/get-link-download"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/redirect-link"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/link-encrypted/manual"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/api/v1/full-pages"
+    },
+    {
+      "host": "1shortlink.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-final"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-final"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "pagead2.googlesyndication.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "challenges.cloudflare.com",
+      "method": "GET",
+      "path": "/frame"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-redirect"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/alias-manual"
+    },
+    {
+      "host": "ez4short.com",
+      "method": "GET",
+      "path": "/favicon.ico"
+    }
+  ],
+  "browser": "151.0.7922.34",
+  "managerVersion": "5.4.1"
+}

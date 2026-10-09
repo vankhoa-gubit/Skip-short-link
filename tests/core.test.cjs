@@ -79,3 +79,29 @@ test("full-pages targets cannot produce script URLs or embedded credentials", ()
     assert.throws(() => Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?url=" + Buffer.from(value).toString("base64")), { code: "UNSAFE_URL" });
   }
 });
+
+test("EZ4 aliases allow bounded GET paths and exclude account routes and POST", () => {
+  for (const path of ["/abc", "/sample_alias-123/", "/AbC?token=a%2Bb%3D"]) assert.equal(Core.canRequest("https://ez4short.com" + path), true);
+  for (const path of ["/", "/st", "/login", "/logout", "/admin", "/api/v1", "/a/b", "/" + "a".repeat(129), "/%2fadmin"]) assert.equal(Core.canRequest("https://ez4short.com" + path), false);
+  assert.equal(Core.canRequest("https://www.ez4short.com/abc", "POST"), false);
+  assert.equal(Core.canRequest("https://ez4short.com:444/abc"), false);
+});
+
+test("enabled EZ4 link controls preserve query and fragment without reading form actions", () => {
+  const page = "https://ez4short.com/abc";
+  const signed = target + "?sig=a%2Bb%3D&part=2#download";
+  for (const control of ["<a id='go-link' href='" + signed.replace("&", "&amp;") + "'>Get link</a>", "<a class='btn get-link' href='" + signed + "'>Get link</a>", "<button id='redirect-link' data-href='" + signed + "'>Get link</button>"]) assert.equal(Core.buttonCandidate(control, page), signed);
+  assert.equal(Core.buttonCandidate("<form id='go-link' action='" + target + "'></form>", page), null);
+});
+
+test("locked, inert, unsafe and unrelated controls do not expose an EZ4 destination", () => {
+  const page = "https://ez4short.com/abc";
+  const anchor = "<a class='get-link' href='" + target + "'>Get link</a>";
+  for (const attributes of ["disabled", "disabled='false'", "hidden", "aria-disabled='true'", "aria-hidden='true'", "class='disabled'", "style='display:none'"]) assert.equal(Core.buttonCandidate("<a id='get-link' " + attributes + " href='" + target + "'>Get link</a>", page), null);
+  for (const content of ["<!--" + anchor + "-->", "<script>const example=\"" + anchor + "\"</script>", "<template>" + anchor + "</template>", "<a href='" + target + "'>advertisement</a>"]) assert.equal(Core.buttonCandidate(content, page), null);
+  for (const href of ["#", "javascript:alert(1)", "https://other.example/ad", "https://ez4short.com/abc#stay"]) assert.equal(Core.buttonCandidate("<a class='get-link' href='" + href + "'>Get link</a>", page), null);
+});
+
+test("conflicting destination controls are reported instead of selecting an arbitrary link", () => {
+  assert.throws(() => Core.buttonCandidate("<a id='get-link' href='" + target + "'></a><a class='get-link' href='https://gofile.io/d/other'></a>", "https://ez4short.com/abc"), { code: "AMBIGUOUS_TARGET" });
+});

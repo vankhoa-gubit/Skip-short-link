@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-10-09T09:36:13.126Z",
+  "outcome": "PASS",
+  "browser": "151.0.7922.34",
+  "scope": "Real MV3 worker terminated through CDP; storage.session seeded with an interrupted job; restarted worker has a fresh JS global and restores the job as stopped, then retry resolves.",
+  "checks": [
+    "Actual worker shutdown/restart",
+    "Interrupted state persisted immediately",
+    "Popup retry after worker restart"
+  ]
+}

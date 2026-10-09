@@ -3,8 +3,11 @@ $adskipRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $adskipVersion = (Get-Content -LiteralPath (Join-Path $adskipRoot 'extension\manifest.json') -Raw | ConvertFrom-Json).version
 if ($adskipVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
 $adskipFiles = @()
+$adskipGeneratedRoot = [System.IO.Path]::GetFullPath((Join-Path $adskipRoot 'extension\_metadata')) + '\'
 foreach ($adskipFolder in @('extension', 'src', 'scripts', 'tests', 'docs')) {
-    $adskipFiles += Get-ChildItem -LiteralPath (Join-Path $adskipRoot $adskipFolder) -File -Recurse
+    $adskipFiles += Get-ChildItem -LiteralPath (Join-Path $adskipRoot $adskipFolder) -File -Recurse | Where-Object {
+        -not $_.FullName.StartsWith($adskipGeneratedRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    }
 }
 foreach ($adskipFile in @('README.md', 'HUONG_DAN_CAI_DAT.md', 'package.json', 'package-lock.json', '.gitignore', 'dist\adskip.user.js')) {
     $adskipFiles += Get-Item -LiteralPath (Join-Path $adskipRoot $adskipFile)

@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-09T09:35:53.748Z",
+  "mode": "Unpacked MV3 extension in isolated Chromium; local HTTPS fixtures with browser-only host mapping and a test certificate, real chrome APIs",
+  "checks": [
+    "Paste /st from an unrelated tab: exact signed URL and fragment, no tab navigation",
+    "Invalid pasted input: inline accessible error, prior result preserved",
+    "Pasted 1short: fetch → existing page candidate → redirect → destination",
+    "Close/reopen popup restores pasted input and result",
+    "Closing a popup during a pending request does not cancel its detached input job",
+    "Expired link displays a specific error and retry, without manual continuation",
+    "Pasted manual flow: explicitly opened tab → user action → fresh DOM → resolved input result",
+    "Widget manual continuation resolves the newly available DOM candidate",
+    "Switching from pasted result to active-tab analysis uses that tab's fresh DOM",
+    "Popup layout fits 320px and exposes keyboard focus"
+  ],
+  "errors": [],
+  "outcome": "PASS",
+  "browser": "151.0.7922.34"
+}

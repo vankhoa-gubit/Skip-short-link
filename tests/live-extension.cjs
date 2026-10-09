@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const assert = require("node:assert/strict");
 const Core = require("../src/core.js");
+const Ads = require("../src/ads.js");
 const { playwright, browserOptions } = require("./helpers.cjs");
 const root = path.resolve(__dirname, "..");
 
@@ -14,30 +15,28 @@ const root = path.resolve(__dirname, "..");
   const profile = fs.mkdtempSync(path.join(root, "work/live-extension-profile-"));
   const extension = path.join(root, "extension");
   const context = await playwright().chromium.launchPersistentContext(profile, {
-    headless: true, channel: "chromium", ...browserOptions(), viewport: { width: 1440, height: 900 },
+    headless: true, channel: "chromium", ...browserOptions(), viewport: { width: 1440, height: 900 }, acceptDownloads: false,
     args: ["--disable-extensions-except=" + extension, "--load-extension=" + extension]
   });
-  const exchanges = []; const checks = []; let blockedRequests = 0; let pageErrors = 0; let result; let inputResult; let failure; let browser;
+  const exchanges = []; const checks = []; const blockedResources = []; let pageErrors = 0; let result; let inputResult; let failure; let browser; let enabledRulesets;
   try {
-    // Real responses on supported services; third-party ads and media are blocked.
-    // No file host is requested and the default auto-open preference stays off.
-    await context.route("**/*", async (route) => {
-      const request = route.request(); const url = new URL(request.url());
-      if (url.protocol !== "https:") return route.continue();
-      if (!Core.SERVICE_HOSTS.has(url.hostname) || ["image", "media", "font"].includes(request.resourceType())) {
-        blockedRequests++; return route.abort("blockedbyclient");
+    // Exercise the shipped rules on the real page. No QA network interception.
+    context.on("requestfailed", (request) => {
+      if (/BLOCKED_BY_CLIENT/.test(request.failure()?.errorText || "") && Ads.services.some(({ id }) => Ads.isAdUrl(request.url(), id))) {
+        blockedResources.push({ host: new URL(request.url()).hostname, resourceType: request.resourceType() });
       }
-      return route.continue();
     });
     context.on("response", (response) => {
       const request = response.request();
-      if (request.resourceType() === "document" || request.method() === "POST") {
+      if (response.url().startsWith("https:") && (request.resourceType() === "document" || request.method() === "POST")) {
         exchanges.push({ method: request.method(), request: Core.describeUrl(response.url()), status: response.status() });
       }
     });
     let worker = context.serviceWorkers()[0];
     if (!worker) worker = await context.waitForEvent("serviceworker", { timeout: 15000 });
     const page = await context.newPage();
+    enabledRulesets = await worker.evaluate(() => chrome.declarativeNetRequest.getEnabledRulesets());
+    assert.deepEqual(enabledRulesets.sort(), ["1short", "ez4short", "tech8s"]);
     page.on("pageerror", () => { pageErrors++; });
     try { await page.goto(start, { waitUntil: "commit", timeout: 20000 }); }
     catch (error) { if (!/ERR_ABORTED/.test(error.message)) throw error; }
@@ -69,6 +68,7 @@ const root = path.resolve(__dirname, "..");
     assert.equal(await popup.locator("#destination").getAttribute("href"), result.url);
     assert.equal(unrelated.url(), "about:blank#input-check");
     checks.push("Pasting the supplied URL in the actual popup produces the same destination and preserves the unrelated tab");
+    checks.push("Shipped native ad rules are enabled during this live run; no Playwright ad/media interception is used");
     assert.equal(pageErrors, 0);
     browser = context.browser().version();
   } catch (error) {
@@ -79,11 +79,11 @@ const root = path.resolve(__dirname, "..");
   } finally { await context.close(); }
   const report = {
     checkedAt: new Date().toISOString(),
-    scope: "Unpacked MV3 extension, isolated Chromium profile, real supported-service responses; third-party ads/media blocked; no file download; auto-open off.",
+    scope: "Unpacked MV3 extension, isolated Chromium profile, real page responses with shipped service-scoped native ad rules; no Playwright routing, hostname mapping or certificate override; auto-open off; downloads disabled.",
     outcome: failure ? "FAIL" : "PASS", browser, checks,
     result: result ? { ...result, sourceUrl: result.sourceUrl ? Core.describeUrl(result.sourceUrl) : undefined } : null,
     inputResult: inputResult ? { ...inputResult, sourceUrl: inputResult.sourceUrl ? Core.describeUrl(inputResult.sourceUrl) : undefined } : null,
-    exchanges, blockedRequests, pageErrors, failure
+    exchanges, enabledRulesets, blockedResources, pageErrors, failure
   };
   fs.writeFileSync(path.join(root, "work/live-extension-result.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
