@@ -66,3 +66,18 @@ test("unknown hosts stop before any request or automatic navigation", async () =
   const result = await resolve(input, { initialCandidate: "https://unknown.example/continue", request() { throw new Error("No request allowed"); } });
   assert.equal(result.phase, "manual"); assert.equal(result.code, "UNSUPPORTED_HOST");
 });
+
+test("expired sessions, rate limits and server downtime have distinct outcomes", async () => {
+  for (const [status, code, phase] of [[419, "SESSION_EXPIRED", "manual"], [429, "RATE_LIMITED", "error"], [503, "SERVICE_UNAVAILABLE", "error"]]) {
+    const result = await resolve(input, { request: async () => ({ status, finalUrl: input, text: "" }) });
+    assert.equal(result.code, code); assert.equal(result.phase, phase);
+  }
+});
+
+test("the observed full-pages format resolves Gofile without an HTTP request or API key in traces", async () => {
+  const destination = "https://gofile.io/d/example?sig=a%2Bb%3D&part=2";
+  const url = "https://1shortlink.com/api/v1/full-pages?api_key=fixture-private-key&url=" + Buffer.from(destination).toString("base64") + "&type=2";
+  const result = await resolve(url, { request() { throw new Error("No request expected"); } });
+  assert.equal(result.phase, "resolved"); assert.equal(result.url, destination);
+  assert.ok(!JSON.stringify(result.steps).includes("fixture-private-key"));
+});

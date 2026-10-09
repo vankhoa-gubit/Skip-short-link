@@ -1,104 +1,217 @@
 "use strict";
 importScripts("core.js", "resolver.js", "fetch-transport.js");
 const Core = globalThis.AdSkipCore;
+const INPUT = "input";
 const jobs = new Map();
 const writes = new Map();
+const versions = new Map();
+const tabUrls = new Map();
 const request = globalThis.AdSkipFetch.create();
-const stateKey = (tabId) => "tab:" + tabId;
-const idle = () => ({ phase: "idle", message: "Mở link 1short hoặc EZ4Short để bắt đầu.", steps: [] });
-async function stateOf(tabId) {
-  const key = stateKey(tabId); const data = await chrome.storage.session.get(key);
-  const state = data[key];
-  if (!state) return idle();
-  if (Date.now() - state.updatedAt > 60 * 60 * 1000) { await chrome.storage.session.remove(key); return idle(); }
-  if (state.phase === "resolving" && !jobs.has(tabId) && Date.now() - state.updatedAt > 60000) return { ...state, phase: "stopped", message: "Phiên xử lý đã kết thúc. Chọn Tìm lại để tiếp tục." };
-  return state;
+const stateKey = (target) => target === INPUT ? INPUT : "tab:" + target;
+const idle = () => ({ phase: "idle", message: "Dán link hoặc phân tích tab đang mở để bắt đầu.", steps: [] });
+
+function stopJob(target) {
+  jobs.get(target)?.controller.abort();
+  jobs.delete(target);
+  const version = (versions.get(target) || 0) + 1;
+  versions.set(target, version);
+  return version;
 }
-function publish(tabId, state, expectedJob) {
-  const queued = (writes.get(tabId) || Promise.resolve()).catch(() => {}).then(async () => {
-    if (expectedJob && jobs.get(tabId) !== expectedJob) return;
-    const value = { ...state, updatedAt: Date.now() };
-    await chrome.storage.session.set({ [stateKey(tabId)]: value });
-    const badge = { resolving: "…", resolved: "✓", manual: "!", error: "!" }[state.phase] || "";
-    await chrome.action.setBadgeText({ tabId, text: badge }).catch(() => {});
-    await chrome.action.setBadgeBackgroundColor({ tabId, color: state.phase === "resolved" ? "#23765b" : state.phase === "resolving" ? "#2b64c5" : "#9a5b0b" }).catch(() => {});
-    await chrome.tabs.sendMessage(tabId, { type: "ADSKIP_STATE", state: value }).catch(() => {});
+function publish(target, state, expectedJob, version = versions.get(target) || 0) {
+  const queued = (writes.get(target) || Promise.resolve()).catch(() => {}).then(async () => {
+    if ((versions.get(target) || 0) !== version || (expectedJob && jobs.get(target) !== expectedJob)) return;
+    const value = { ...state, source: target === INPUT ? INPUT : "tab", updatedAt: Date.now() };
+    await chrome.storage.session.set({ [stateKey(target)]: value });
+    if (target !== INPUT) {
+      if (value.sourceUrl) tabUrls.set(target, value.sourceUrl); else tabUrls.delete(target);
+      const badge = { resolving: "…", resolved: "✓", manual: "!", error: "!" }[value.phase] || "";
+      await chrome.action.setBadgeText({ tabId: target, text: badge }).catch(() => {});
+      await chrome.action.setBadgeBackgroundColor({ tabId: target, color: value.phase === "resolved" ? "#23765b" : value.phase === "resolving" ? "#2b64c5" : "#9a5b0b" }).catch(() => {});
+      await chrome.tabs.sendMessage(target, { type: "ADSKIP_STATE", state: value }).catch(() => {});
+    }
+    return value;
   });
-  writes.set(tabId, queued);
-  queued.finally(() => { if (writes.get(tabId) === queued) writes.delete(tabId); }).catch(() => {});
+  writes.set(target, queued);
+  queued.finally(() => { if (writes.get(target) === queued) writes.delete(target); }).catch(() => {});
   return queued;
 }
-function stopJob(tabId) { jobs.get(tabId)?.controller.abort(); jobs.delete(tabId); }
-async function maybeOpen(tabId, result, expectedUrl) {
-  if (result.phase !== "resolved" || !Core.isFileHost(result.url)) return;
-  const preferences = await chrome.storage.local.get({ autoOpen: false });
-  if (preferences.autoOpen) {
-    const tab = await chrome.tabs.get(tabId).catch(() => null);
-    if (!tab?.url) return;
-    const current = Core.urlOf(tab.url);
-    if (!Core.SERVICE_HOSTS.has(current.hostname)) return;
-    if (expectedUrl && Core.visitKey(current.href) !== Core.visitKey(expectedUrl)) return;
-    if (Core.visitKey(current.href) !== Core.visitKey(result.url)) await chrome.tabs.update(tabId, { url: result.url });
+async function stateOf(target) {
+  await (writes.get(target) || Promise.resolve()).catch(() => {});
+  const version = versions.get(target) || 0;
+  const state = (await chrome.storage.session.get(stateKey(target)))[stateKey(target)];
+  if (!state) return idle();
+  if (!Number.isFinite(state.updatedAt) || Date.now() - state.updatedAt > 60 * 60 * 1000) {
+    return await publish(target, idle(), undefined, version) || stateOf(target);
   }
+  if (state.phase === "resolving" && !jobs.has(target)) {
+    const interrupted = { ...state, phase: "stopped", url: null, code: "SESSION_INTERRUPTED", message: "Phiên xử lý bị ngắt. Chọn Tìm lại để bắt đầu với dữ liệu mới." };
+    return await publish(target, interrupted, undefined, version) || stateOf(target);
+  }
+  if (target !== INPUT && state.sourceUrl) tabUrls.set(target, state.sourceUrl);
+  return state;
 }
-async function run(tabId, url, hints = {}) {
+async function currentTabState(tabId) {
+  if (!Number.isInteger(tabId) || tabId < 0) return idle();
+  const version = versions.get(tabId) || 0;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  const state = await stateOf(tabId);
+  if (state.sourceUrl && tab?.url) {
+    let same = false;
+    try { same = Core.visitKey(state.sourceUrl) === Core.visitKey(tab.url); } catch { /* Unsupported browser page. */ }
+    if (!same) return await publish(tabId, idle(), undefined, version) || stateOf(tabId);
+  }
+  return state;
+}
+async function maybeOpen(target, result, expectedUrl) {
+  if (target === INPUT || result.phase !== "resolved" || !Core.isFileHost(result.url)) return;
+  const preferences = await chrome.storage.local.get({ autoOpen: false });
+  if (!preferences.autoOpen) return;
+  const tab = await chrome.tabs.get(target).catch(() => null);
+  if (!tab?.url) return;
+  const current = Core.urlOf(tab.url);
+  if (!Core.SERVICE_HOSTS.has(current.hostname)) return;
+  if (expectedUrl && Core.visitKey(current.href) !== Core.visitKey(expectedUrl)) return;
+  if (Core.visitKey(current.href) !== Core.visitKey(result.url)) await chrome.tabs.update(target, { url: result.url });
+}
+async function readPageHints(tabId, expectedUrl, signal) {
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const reply = await chrome.tabs.sendMessage(tabId, { type: "ADSKIP_PAGE_HINTS" }).catch(() => null);
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  if (!reply?.pageUrl) return {};
+  try { if (Core.visitKey(reply.pageUrl) !== Core.visitKey(expectedUrl)) return {}; } catch { return {}; }
+  return reply.hints || {};
+}
+function run(target, url, hints = {}, metadata = {}) {
   const start = Core.urlOf(url).href;
-  const previous = jobs.get(tabId);
+  const previous = jobs.get(target);
   if (previous?.url === start) return previous.promise;
-  stopJob(tabId);
-  const controller = new AbortController(); const job = { url: start, controller }; jobs.set(tabId, job);
+  const version = stopJob(target);
+  const controller = new AbortController();
+  const sourceUrl = metadata.sourceUrl || start;
+  const job = { url: start, sourceUrl, controller, version };
+  jobs.set(target, job);
   job.promise = (async () => {
-    await publish(tabId, { phase: "resolving", message: "Đang đọc dữ liệu trang…", steps: [] }, job);
-    const result = await globalThis.AdSkipResolver.resolve(start, {
-      initialCandidate: hints.initialCandidate,
-      initialHtml: typeof hints.initialHtml === "string" ? hints.initialHtml.slice(0, 1048576) : undefined,
-      request, signal: controller.signal,
-      onStep(step, steps) { void publish(tabId, { phase: "resolving", message: step.label + "…", steps }, job); }
-    });
-    if (jobs.get(tabId) === job) { await publish(tabId, result, job); jobs.delete(tabId); await maybeOpen(tabId, result, start).catch(() => {}); }
+    let result;
+    try {
+      await publish(target, { phase: "resolving", message: "Đang đọc dữ liệu mới…", sourceUrl, steps: [], manualTabId: metadata.manualTabId }, job);
+      const fresh = Number.isInteger(metadata.readTabId) ? await readPageHints(metadata.readTabId, start, controller.signal) : hints;
+      result = await globalThis.AdSkipResolver.resolve(start, {
+        initialCandidate: fresh.initialCandidate,
+        initialHtml: typeof fresh.initialHtml === "string" ? fresh.initialHtml.slice(0, 1048576) : undefined,
+        request, signal: controller.signal,
+        onStep(step, steps) { void publish(target, { phase: "resolving", message: step.label + "…", sourceUrl, steps, manualTabId: metadata.manualTabId }, job); }
+      });
+      result = { ...result, sourceUrl, manualTabId: metadata.manualTabId };
+      if (jobs.get(target) === job) {
+        await publish(target, result, job);
+        await maybeOpen(target, result, start).catch(() => {});
+      }
+    } catch {
+      result = { phase: controller.signal.aborted ? "stopped" : "error", code: controller.signal.aborted ? "CANCELLED" : "STATE_ERROR", sourceUrl, steps: [], message: controller.signal.aborted ? "Đã dừng xử lý." : "Không đọc được phiên xử lý. Chọn Tìm lại." };
+      if (jobs.get(target) === job) await publish(target, result, job).catch(() => {});
+    } finally { if (jobs.get(target) === job) jobs.delete(target); }
     return result;
   })();
   return job.promise;
 }
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !message || typeof message.type !== "string") return;
-  // Content scripts stay bound to their own tab. Trusted extension pages
-  // (including a popup opened in a tab for diagnostics) select the active tab.
   const fromExtensionPage = typeof sender.url === "string" && sender.url.startsWith(chrome.runtime.getURL(""));
+  if (message.source === INPUT && !fromExtensionPage) { sendResponse({ error: "Thao tác nhập link chỉ có trong popup." }); return; }
   const tabId = fromExtensionPage ? message.tabId : sender.tab?.id;
-  if (!Number.isInteger(tabId) || tabId < 0) { sendResponse({ error: "Không xác định được tab đang mở." }); return; }
+  let target = message.source === INPUT ? INPUT : tabId;
+  if (target !== INPUT && (!Number.isInteger(tabId) || tabId < 0)) { sendResponse({ error: "Không xác định được tab đang mở." }); return; }
   (async () => {
-    if (message.type === "ADSKIP_GET") return { state: await stateOf(tabId), preferences: await chrome.storage.local.get({ autoOpen: false }) };
-    if (message.type === "ADSKIP_STOP") { stopJob(tabId); await publish(tabId, { phase: "stopped", message: "Đã dừng xử lý.", steps: [] }); return { state: await stateOf(tabId) }; }
-    if (message.type === "ADSKIP_PREFERENCE") { await chrome.storage.local.set({ autoOpen: !!message.autoOpen }); if (message.autoOpen) await maybeOpen(tabId, await stateOf(tabId)); return { ok: true }; }
-    if (message.type === "ADSKIP_OPEN") {
-      const state = await stateOf(tabId);
-      if (!state.url) return { error: "Chưa có URL để mở." };
-      await chrome.tabs.create({ url: Core.urlOf(state.url).href }); return { ok: true };
+    if (message.type === "ADSKIP_GET") {
+      const inputState = fromExtensionPage ? await stateOf(INPUT) : undefined;
+      if (fromExtensionPage && message.restore && (await chrome.storage.session.get("popupSource")).popupSource === INPUT && inputState.phase !== "idle") target = INPUT;
+      return { state: target === INPUT ? inputState || await stateOf(INPUT) : await currentTabState(tabId), inputState, source: target === INPUT ? INPUT : "tab", preferences: await chrome.storage.local.get({ autoOpen: false }) };
     }
-    if (message.type === "ADSKIP_RESOLVE") {
-      const tab = await chrome.tabs.get(tabId); const url = fromExtensionPage ? tab.url : sender.url || sender.tab?.url;
+    if (message.type === "ADSKIP_STOP") {
+      const job = jobs.get(target); const version = stopJob(target);
+      await (writes.get(target) || Promise.resolve()).catch(() => {});
+      const previous = (await chrome.storage.session.get(stateKey(target)))[stateKey(target)] || idle();
+      await publish(target, { ...previous, sourceUrl: job?.sourceUrl || previous.sourceUrl, phase: "stopped", message: "Đã dừng xử lý.", url: null, code: "CANCELLED" }, undefined, version);
+      return { state: await stateOf(target) };
+    }
+    if (message.type === "ADSKIP_PREFERENCE") {
+      await chrome.storage.local.set({ autoOpen: !!message.autoOpen });
+      if (message.autoOpen && target !== INPUT) await maybeOpen(target, await currentTabState(tabId));
+      return { ok: true };
+    }
+    if (message.type === "ADSKIP_OPEN") {
+      const version = versions.get(target) || 0;
+      const state = target === INPUT ? await stateOf(target) : await currentTabState(tabId);
+      if (!state.url || state.phase === "resolving") return { error: "Chưa có URL để mở." };
+      const opened = await chrome.tabs.create({ url: Core.urlOf(state.url).href });
+      if (target === INPUT && Core.canContinue(state)) await publish(target, { ...state, manualTabId: opened.id }, undefined, version);
+      return { ok: true };
+    }
+    if (message.type === "ADSKIP_RESOLVE" || message.type === "ADSKIP_CONTINUE") {
+      const version = versions.get(target) || 0;
+      if (target === INPUT) {
+        const previous = await stateOf(INPUT);
+        let url; let metadata = {};
+        if (message.type === "ADSKIP_CONTINUE") {
+          if (!Core.canContinue(previous)) return { state: previous };
+          const manualTab = Number.isInteger(previous.manualTabId) ? await chrome.tabs.get(previous.manualTabId).catch(() => null) : null;
+          if (!manualTab?.url) return { state: previous, error: "Mở bước hiện tại, hoàn tất thao tác trên trang rồi tiếp tục kiểm tra." };
+          url = Core.inputUrl(manualTab.url);
+          metadata = { sourceUrl: previous.sourceUrl, manualTabId: manualTab.id, readTabId: manualTab.id };
+        } else url = Core.inputUrl(message.url);
+        if ((versions.get(target) || 0) !== version) return { state: await stateOf(target) };
+        await chrome.storage.session.set({ popupSource: INPUT });
+        if ((versions.get(target) || 0) !== version) return { state: await stateOf(target) };
+        return { state: await run(INPUT, url, {}, metadata), source: INPUT };
+      }
+      const tab = await chrome.tabs.get(tabId);
+      const url = fromExtensionPage ? tab.url : sender.url || sender.tab?.url;
+      if ((versions.get(target) || 0) !== version) return { state: await stateOf(target) };
       if (!url || !Core.SERVICE_HOSTS.has(Core.urlOf(url).hostname)) {
-        const state = { phase: "manual", message: "Mở link 1short, EZ4Short hoặc Tech8s để dùng bộ xử lý hiện tại.", code: "UNSUPPORTED_TAB", steps: [] };
+        const state = { phase: "manual", message: "Dán link vào ô nhập hoặc mở tab 1shortlink, EZ4Short, Tech8s để phân tích.", code: "UNSUPPORTED_TAB", steps: [] };
         await publish(tabId, state); return { state };
       }
-      return { state: await run(tabId, url, fromExtensionPage ? {} : message.hints) };
+      if (!fromExtensionPage && (!tab.url || Core.visitKey(url) !== Core.visitKey(tab.url))) return { state: await currentTabState(tabId) };
+      if (!fromExtensionPage && message.automatic) {
+        const existing = await stateOf(tabId);
+        if (existing.phase === "resolved" && existing.sourceUrl && Core.visitKey(existing.sourceUrl) === Core.visitKey(url)) return { state: existing };
+      }
+      if (fromExtensionPage) await chrome.storage.session.set({ popupSource: "tab" });
+      if ((versions.get(target) || 0) !== version) return { state: await stateOf(target) };
+      return { state: await run(tabId, url, fromExtensionPage ? {} : message.hints || {}, fromExtensionPage ? { readTabId: tabId } : {}), source: "tab" };
     }
     return { error: "Thao tác không được hỗ trợ." };
-  })().then(sendResponse).catch(() => sendResponse({ error: "Không đọc được tab hoặc trạng thái xử lý. Tải lại trang rồi thử lại." }));
+  })().then(sendResponse).catch((error) => sendResponse({ error: error instanceof Core.AdSkipError ? error.message : "Không đọc được tab hoặc phiên xử lý. Tải lại trang rồi thử lại.", code: error instanceof Core.AdSkipError ? error.code : "STATE_ERROR" }));
   return true;
 });
-// Preserve /st's original query before the page auto-submits its form.
+
+// Capture /st before the site can replace its original query.
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0 || details.tabId < 0) return;
   let target; try { target = Core.ez4Destination(details.url); } catch { return; }
   if (!target || !Core.isFileHost(target)) return;
-  stopJob(details.tabId);
-  const state = { phase: "resolved", message: "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.", url: target, code: null,
+  const version = stopJob(details.tabId);
+  const state = { phase: "resolved", message: "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.", sourceUrl: details.url, url: target, code: null,
     steps: [{ label: "Nhận URL trước khi EZ4Short chuyển bước", url: Core.describeUrl(details.url) }, { label: "Đã tìm địa chỉ đích", url: Core.describeUrl(target) }] };
-  void publish(details.tabId, state).then(() => maybeOpen(details.tabId, state, details.url)).catch(() => {});
+  void publish(details.tabId, state, undefined, version).then((value) => value && maybeOpen(details.tabId, value, details.url)).catch(() => {});
 }, { url: [{ hostEquals: "ez4short.com" }, { hostEquals: "www.ez4short.com" }] });
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (!change.url && change.status !== "loading") return;
+  const known = tabUrls.get(tabId);
+  if (change.url) {
+    try {
+      const destination = Core.ez4Destination(change.url);
+      if (destination && Core.isFileHost(destination)) return;
+      if (known && Core.visitKey(known) === Core.visitKey(change.url) && change.status !== "loading") return;
+    } catch { /* Clear an old result when the new URL is unsupported. */ }
+  } else if (!jobs.has(tabId)) return;
+  const version = stopJob(tabId);
+  void chrome.storage.session.get(stateKey(tabId)).then((data) => {
+    if (data[stateKey(tabId)]) return publish(tabId, idle(), undefined, version);
+  }).catch(() => {});
+});
 chrome.tabs.onRemoved.addListener((tabId) => {
-  stopJob(tabId);
-  void (writes.get(tabId) || Promise.resolve()).catch(() => {}).then(() => chrome.storage.session.remove(stateKey(tabId)));
+  stopJob(tabId); tabUrls.delete(tabId);
+  void (writes.get(tabId) || Promise.resolve()).catch(() => {}).then(() => chrome.storage.session.remove(stateKey(tabId))).finally(() => versions.delete(tabId));
 });

@@ -6,21 +6,35 @@
   <script src="core.js" defer></script><script src="popup.js" defer></script>
 </head>
 <body>
-  <header><h1>AdSkip</h1><span id="current-host">Tab đang mở</span></header>
+  <header><div><h1>AdSkip</h1><span class="version">0.2.0</span></div><span id="current-host">Tab đang mở</span></header>
   <main>
-    <p class="status" id="status" role="status" aria-live="polite">Đang đọc trạng thái…</p>
-    <p class="message" id="message">Mở link 1short hoặc EZ4Short để bắt đầu.</p>
-    <a id="destination" class="destination hidden" target="_blank" rel="noopener noreferrer"></a>
-    <div class="actions">
-      <button id="open" class="primary hidden" type="button">Mở trang đích</button>
-      <button id="copy" class="hidden" type="button">Sao chép</button>
-      <button id="resolve" type="button">Phân tích tab này</button>
-      <button id="stop" class="hidden" type="button">Dừng</button>
-    </div>
-    <label class="preference"><input id="auto-open" type="checkbox">Mở trang đích khi tìm được</label>
+    <form id="link-form" novalidate>
+      <label for="link-input">Link cần tìm trang đích</label>
+      <input id="link-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="16384" placeholder="https://1shortlink.com/…" aria-describedby="input-help input-error">
+      <p id="input-help" class="help">Dán link 1shortlink hoặc EZ4Short để bắt đầu.</p>
+      <p id="input-error" class="field-error hidden" role="alert"></p>
+      <button id="input-resolve" class="primary" type="submit">Tìm trang đích</button>
+    </form>
+    <section class="result" aria-label="Kết quả xử lý">
+      <p id="source-label" class="source-label">Kết quả tab đang mở</p>
+      <p class="status" id="status" role="status" aria-live="polite">Đang đọc trạng thái…</p>
+      <p class="message" id="message">Dán link hoặc phân tích tab đang mở để bắt đầu.</p>
+      <p id="continue-help" class="continue-help hidden"></p>
+      <a id="destination" class="destination hidden" target="_blank" rel="noopener noreferrer"></a>
+      <div class="actions">
+        <button id="open" class="primary hidden" type="button">Mở trang đích</button>
+        <button id="copy" class="hidden" type="button">Sao chép</button>
+        <button id="continue" class="hidden" type="button">Tiếp tục kiểm tra</button>
+        <button id="retry" class="hidden" type="button">Tìm lại</button>
+        <button id="stop" class="hidden" type="button">Dừng</button>
+      </div>
+    </section>
+    <button id="resolve" class="tab-action" type="button">Phân tích tab này</button>
+    <label class="preference"><input id="auto-open" type="checkbox">Tự mở đích của tab đang xử lý</label>
+    <p id="preference-help" class="help hidden">Với link đã dán, chọn Mở trang đích khi cần.</p>
     <details><summary>Các bước đã xử lý</summary><ol id="steps"></ol></details>
     <p id="notice" class="notice" role="status"></p>
   </main>
-  <footer>Địa chỉ tìm được có thể hết hạn. Mở trang đích để kiểm tra file.</footer>
+  <footer>Link đích có thể hết hạn. Mở trang đích để kiểm tra file.</footer>
 </body>
 </html>

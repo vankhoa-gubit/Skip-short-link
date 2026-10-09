@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-10-09T08:51:36.4393072Z",
+  "command": "npm test",
+  "outcome": "PASS",
+  "tests": 43,
+  "pass": 43,
+  "fail": 0,
+  "scope": "Node unit and contract tests: core 14, resolver 12, background lifecycle 13, transport 4"
+}

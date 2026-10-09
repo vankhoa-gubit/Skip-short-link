@@ -25,7 +25,7 @@ const { playwright } = require("./helpers.cjs");
       return { status: response.status(), finalUrl, text };
     } });
   } finally { await context.dispose(); }
-  const report = { checkedAt: new Date().toISOString(), scope: "Real HTTP protocol through Playwright APIRequestContext; no CAPTCHA solving and no file download.", result, exchanges };
+  const report = { checkedAt: new Date().toISOString(), scope: exchanges.length ? "Real HTTP protocol through Playwright APIRequestContext; no CAPTCHA solving and no file download." : "Supplied real URL decoded locally; no HTTP request and no file download.", input: Core.describeUrl(start), result, exchanges };
   fs.mkdirSync(path.join(__dirname, "../work"), { recursive: true });
   fs.writeFileSync(path.join(__dirname, "../work/live-result.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));

@@ -1,52 +1,22 @@
 {
-  "checkedAt": "2026-10-08T08:33:03.371Z",
-  "scope": "Real HTTP protocol through Playwright APIRequestContext; no CAPTCHA solving and no file download.",
+  "checkedAt": "2026-10-09T08:27:52.717Z",
+  "scope": "Supplied real URL decoded locally; no HTTP request and no file download.",
+  "input": "1shortlink.com/api/v1/full-pages",
   "result": {
     "phase": "resolved",
     "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
-    "url": "https://vexfile.com/download/2fezKvg9vP",
+    "url": "https://gofile.io/d/PKvjP6Yd",
     "code": null,
     "steps": [
       {
-        "label": "Đọc trang 1short",
-        "url": "1shortlink.com/link-encrypted/…"
-      },
-      {
-        "label": "Yêu cầu URL kế tiếp từ 1short",
-        "url": "1shortlink.com/link-encrypted/…"
-      },
-      {
-        "label": "Theo chuyển hướng 1short",
-        "url": "1shortlink.com/redirect-link"
-      },
-      {
-        "label": "Đọc URL đích từ EZ4Short",
-        "url": "ez4short.com/st"
+        "label": "Đọc URL đích từ link full-pages",
+        "url": "1shortlink.com/api/v1/full-pages"
       },
       {
         "label": "Đã tìm địa chỉ đích",
-        "url": "vexfile.com/download/2fezKvg9vP"
+        "url": "gofile.io/d/PKvjP6Yd"
       }
     ]
   },
-  "exchanges": [
-    {
-      "method": "GET",
-      "request": "1shortlink.com/link-encrypted/…",
-      "status": 200,
-      "final": "1shortlink.com/link-encrypted/…"
-    },
-    {
-      "method": "POST",
-      "request": "1shortlink.com/get-link-download",
-      "status": 200,
-      "final": "1shortlink.com/get-link-download"
-    },
-    {
-      "method": "GET",
-      "request": "1shortlink.com/redirect-link",
-      "status": 200,
-      "final": "ez4short.com/st"
-    }
-  ]
+  "exchanges": []
 }

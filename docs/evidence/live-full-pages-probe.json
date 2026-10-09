@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-10-09T07:38:41.051Z",
+  "input": "1shortlink.com/api/v1/full-pages",
+  "decodedTarget": "https://gofile.io/d/PKvjP6Yd",
+  "status": 302,
+  "redirect": "1shortlink.com/link-encrypted/…",
+  "title": "Redirecting to 1shortlink.com/link-encrypted/…",
+  "hasLiteralGetLink": false,
+  "hasButton": false,
+  "bodyLength": 1998
+}

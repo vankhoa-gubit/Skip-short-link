@@ -49,6 +49,8 @@
           emit("Gặp dịch vụ chưa hỗ trợ", cursor);
           return finish("manual", "Đã tìm được bước kế tiếp nhưng dịch vụ này chưa được hỗ trợ.", cursor, "UNSUPPORTED_HOST");
         }
+        const embedded = Core.oneShortDestination(cursor);
+        if (embedded) { emit("Đọc URL đích từ link full-pages", cursor); cursor = embedded; continue; }
         if (hop === 0 && options.initialCandidate) {
           emit("Đọc URL mà trang 1short đã nhận", cursor);
           cursor = Core.urlOf(options.initialCandidate, cursor).href;
@@ -74,7 +76,7 @@
     } catch (error) {
       const code = error.code || (error.name === "AbortError" ? "CANCELLED" : "NETWORK_ERROR");
       const message = error instanceof Core.AdSkipError ? error.message : code === "CANCELLED" ? "Đã dừng xử lý." : "Không kết nối được trang trung gian. Thử lại khi trang đã tải xong.";
-      return finish(code === "CANCELLED" ? "stopped" : ["NEEDS_VERIFICATION", "NON_JSON", "LINK_UNAVAILABLE"].includes(code) ? "manual" : "error", message, cursor || null, code);
+      return finish(code === "CANCELLED" ? "stopped" : ["NEEDS_VERIFICATION", "SESSION_EXPIRED", "NON_JSON", "LINK_UNAVAILABLE"].includes(code) ? "manual" : "error", message, cursor || null, code);
     }
   }
   return { resolve };

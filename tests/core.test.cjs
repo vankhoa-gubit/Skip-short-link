@@ -53,3 +53,29 @@ test("trace redacts ciphertext and publisher query values", () => {
   assert.equal(Core.describeUrl("https://1shortlink.com/link-encrypted/private-cipher"), "1shortlink.com/link-encrypted/…");
   assert.equal(Core.describeUrl(st(target)), "ez4short.com/st");
 });
+
+test("pasted inputs preserve signatures and reject unsupported origins", () => {
+  const signed = target + "?sig=a%2Fb%2Bc%3D&part=2#fragment";
+  assert.equal(Core.inputUrl("  " + signed + "  "), signed);
+  for (const value of ["https://example.org/", "https://1shortlink.com.evil.example/x", "https://1shortlink.com:444/ll/x"]) assert.throws(() => Core.inputUrl(value), { code: "UNSUPPORTED_INPUT" });
+});
+test("manual continuation is offered only for recoverable page steps", () => {
+  for (const code of ["NEEDS_VERIFICATION", "SESSION_EXPIRED", "FORM_NOT_FOUND", "EZ4_ALIAS"]) assert.equal(Core.canContinue({ phase: "manual", code }), true);
+  for (const code of ["LOOP", "HOP_LIMIT", "ARTICLE_WITHOUT_CONTEXT", "UNSUPPORTED_HOST"]) assert.equal(Core.canContinue({ phase: "manual", code }), false);
+  assert.equal(Core.canContinue({ phase: "resolved", code: "FORM_NOT_FOUND" }), false);
+});
+
+test("1short full-pages decodes the Base64 envelope while preserving signed target bytes", () => {
+  const destination = "https://gofile.io/d/example?signature=a%2Fb%2Bc%3D&part=2#fragment";
+  const encoded = Buffer.from(destination, "utf8").toString("base64");
+  for (const value of [encoded, encodeURIComponent(encoded)]) assert.equal(Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?api_key=fixture&url=" + value + "&type=2"), destination);
+  assert.equal(Core.oneShortDestination("https://1shortlink.com/ll/test?url=" + encoded), null);
+  assert.equal(Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?type=2"), null);
+  for (const value of ["%zz", "not-base64", ""]) assert.throws(() => Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?url=" + value), { code: "BAD_ENCODING" });
+  assert.throws(() => Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?url=" + encoded + "&url=" + encoded), { code: "AMBIGUOUS_TARGET" });
+});
+test("full-pages targets cannot produce script URLs or embedded credentials", () => {
+  for (const value of ["javascript:alert(1)", "https://user:pass@gofile.io/d/example", "http://gofile.io/d/example"]) {
+    assert.throws(() => Core.oneShortDestination("https://1shortlink.com/api/v1/full-pages?url=" + Buffer.from(value).toString("base64")), { code: "UNSAFE_URL" });
+  }
+});

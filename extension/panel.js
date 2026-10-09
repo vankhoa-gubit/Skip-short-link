@@ -26,7 +26,7 @@
   }
   function prepareEz4Page() {
     let target;
-    try { target = Core.ez4Destination(location.href); } catch { return null; }
+    try { target = Core.ez4Destination(location.href) || Core.oneShortDestination(location.href); } catch { return null; }
     if (!target || !Core.isFileHost(target)) return null;
     window.stop();
     // document-start can stop parsing before an <html> element exists.
@@ -72,8 +72,11 @@
     open.target = "_blank"; open.rel = "noopener noreferrer";
     const copy = element("button", "Sao chép", "button hidden"); copy.type = "button";
     const retry = element("button", "Tìm link", "button"); retry.type = "button";
+    const resume = element("button", "Tiếp tục kiểm tra", "button hidden"); resume.type = "button";
     const stop = element("button", "Dừng", "button hidden"); stop.type = "button";
-    actions.append(open, copy, retry, stop);
+    const guidance = element("p", "Hoàn tất thao tác trên trang đang mở rồi chọn Tiếp tục kiểm tra.", "guidance hidden");
+    guidance.style.cssText = "margin-top:12px;font-size:12px;color:#795018;line-height:1.5";
+    actions.append(open, copy, resume, retry, stop);
     const preference = element("label", undefined, "preferences");
     const checkbox = element("input"); checkbox.type = "checkbox"; checkbox.checked = autoOpen;
     const preferenceText = element("span", "Mở trang đích khi tìm được");
@@ -81,7 +84,7 @@
     const details = element("details"); const summary = element("summary", "Các bước đã xử lý");
     const steps = element("ol", undefined, "steps"); details.append(summary, steps);
     const toast = element("p", "", "toast"); toast.setAttribute("role", "status");
-    body.append(status, message, destination, actions, preference, details, toast);
+    body.append(status, message, guidance, destination, actions, preference, details, toast);
     panel.append(header, body);
     const launcher = element("button", "AdSkip", "launcher hidden");
     launcher.type = "button"; launcher.setAttribute("aria-label", "Mở bảng AdSkip");
@@ -92,6 +95,7 @@
     collapse.addEventListener("click", () => { panel.classList.add("hidden"); launcher.classList.remove("hidden"); launcher.focus(); });
     launcher.addEventListener("click", () => { panel.classList.remove("hidden"); launcher.classList.add("hidden"); collapse.focus(); });
     retry.addEventListener("click", () => handlers.onStart());
+    resume.addEventListener("click", () => (handlers.onContinue || handlers.onStart)());
     stop.addEventListener("click", () => handlers.onStop());
     checkbox.addEventListener("change", () => handlers.onPreference(checkbox.checked));
     copy.addEventListener("click", async () => {
@@ -117,6 +121,10 @@
       } else { destination.removeAttribute("href"); open.removeAttribute("href"); }
       retry.disabled = next.phase === "resolving";
       retry.textContent = next.phase === "idle" ? "Tìm link" : "Tìm lại";
+      const resumable = Core.canContinue(next);
+      resume.classList.toggle("hidden", !resumable);
+      guidance.classList.toggle("hidden", !resumable);
+      retry.classList.toggle("hidden", resumable);
       stop.classList.toggle("hidden", next.phase !== "resolving");
       steps.replaceChildren();
       for (const step of next.steps || []) {
@@ -126,9 +134,19 @@
     }
     return { render, setPreference(value) { checkbox.checked = !!value; }, host, shadow };
   }
-  async function pageHints(signal) {
+  async function pageHints(signal, waitMs = 8000) {
     if (Core.serviceOf(location.href) !== "1short") return {};
-    if (document.readyState === "loading") await new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    if (document.readyState === "loading") await new Promise((resolve, reject) => {
+      let timer;
+      const cleanup = () => { clearTimeout(timer); document.removeEventListener("DOMContentLoaded", ready); signal?.removeEventListener("abort", abort); };
+      const ready = () => { cleanup(); resolve(); };
+      const abort = () => { cleanup(); reject(new DOMException("Aborted", "AbortError")); };
+      document.addEventListener("DOMContentLoaded", ready, { once: true });
+      signal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(ready, waitMs);
+      if (signal?.aborted) abort();
+    });
     const candidate = () => document.getElementById("redirect-link")?.getAttribute("data-href");
     let result = candidate();
     if (!result && document.getElementById("redirect-link")) {
@@ -138,11 +156,12 @@
         const observer = new MutationObserver(() => { const value = candidate(); if (value) finish(value); });
         const abort = () => finish(null);
         observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href"], childList: true });
-        timer = setTimeout(() => finish(null), 8000);
+        timer = setTimeout(() => finish(null), waitMs);
         if (signal?.aborted) finish(null); else signal?.addEventListener("abort", abort, { once: true });
       });
     }
-    return { initialCandidate: result || undefined, initialHtml: document.documentElement.outerHTML.slice(0, 1048576) };
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return { initialCandidate: result || undefined, initialHtml: document.documentElement?.outerHTML.slice(0, 1048576) };
   }
   root.AdSkipPanel = { mount, pageHints, prepareEz4Page };
 })(typeof globalThis !== "undefined" ? globalThis : this);

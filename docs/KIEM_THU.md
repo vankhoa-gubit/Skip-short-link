@@ -1,59 +1,81 @@
-# Báo cáo kiểm thử AdSkip 0.1.0
+# Báo cáo kiểm thử AdSkip 0.2.0
 
-**Ngày:** 08/10/2026 (Asia/Bangkok). **Môi trường:** Windows, Node.js 24.21.0, Playwright 1.62.1, Chromium 151.0.7922.34. Trình duyệt dùng profile riêng trong `D:\adskip\work`; chưa cài vào Chrome/Edge cá nhân.
+**Ngày:** 09/10/2026 (Asia/Bangkok). **Môi trường:** Windows, Node.js 24.21.0, Playwright 1.62.1, Chromium 151.0.7922.34, Tampermonkey 5.4.1. Kiểm thử trên working tree 0.2 dựa trên commit `838dffe`; chưa tạo commit mới. Mọi trình duyệt dùng profile QA riêng trong `work/`.
 
 ## Kết quả
 
-| Hạng mục | Trạng thái | Bằng chứng và giới hạn |
+| Hạng mục | Trạng thái | Bằng chứng và phạm vi |
 | --- | --- | --- |
-| Build và kiểm tra cú pháp | PASS | `npm run build`; userscript và module extension được tạo |
-| Core/resolver | PASS, 20/20 | URL có query/chữ ký/fragment, mã hóa 1–2 lần, hostname, POST endpoint, loop, hop limit, CAPTCHA, abort và alias không hỗ trợ |
-| Userscript trong Chromium | PASS, 6 kiểm tra | Bundle thật; GM API được mô phỏng, network dùng fixture. Chưa chứng minh Tampermonkey cài thật |
-| Extension trong Chromium | PASS, 7 kiểm tra | Extension unpacked, API `chrome.*` thật, network fixture |
-| Link 1short thật qua HTTP | PASS | Phiên mới qua Playwright APIRequestContext; 3 request của resolver; trả đúng Vexfile |
-| Link 1short thật qua extension | PASS | Extension unpacked, phản hồi 1short/EZ4Short thật; quảng cáo/media bên thứ ba bị chặn trong test; 0 lỗi JavaScript trang |
-| Giao diện desktop, mobile, popup | PASS trong kích thước đã xem | 1440×900, widget 390×844, popup 360px; kiểm tra ảnh thủ công. Không phải test điện thoại thật |
-| CodeGraph | PASS | `codegraph init -i` hoàn tất; MCP status xác nhận index hoạt động; bỏ qua scratch/browser profiles |
-| Tampermonkey/Violentmonkey cài thật | NOT RUN | Chỉ kiểm chứng hợp đồng GM bằng shim |
-| Chrome và Edge cá nhân | NOT RUN | Quy trình cài đã được hướng dẫn; chạy thực tế dùng Chromium riêng |
-| File có tải được/cài được | NOT RUN | Không tải hoặc cài tài nguyên; lần thăm dò HTTP trước đó của Vexfile mẫu trả 500 |
-| Gofile/Yandex trên link thật | NOT RUN | Chỉ kiểm thử nhận diện domain; chưa có chuỗi URL mẫu thật |
-| EZ4Short alias không có `url`, Tech8s riêng | MANUAL | Tool hiển thị cần thao tác, không đoán link đích |
-| CAPTCHA/mật khẩu/bước bảo vệ server | MANUAL | Không triển khai giải các bước này |
+| Build và cú pháp | PASS | `npm run build`; kiểm tra JavaScript và tạo bundle/module chung |
+| Unit và contract | PASS, 43/43 | Core 14, resolver 12, background 13, transport 4; background dùng API stub trong Node |
+| Userscript với GM shim | PASS, 7 kiểm tra | Bundle thật, fixture network, hợp đồng GM mô phỏng; `userscript-result.json` |
+| Extension với fixture | PASS, 7 kiểm tra | Tiện ích unpacked và `chrome.*` thật; `extension-result.json` |
+| Popup và tiếp tục 0.2 | PASS, 10 kiểm tra | Tiện ích thật, server HTTPS fixture; `extension-v02-result.json` |
+| Worker khởi động lại | PASS, 3 kiểm tra | Đóng worker thật bằng CDP, xác nhận global JS mới, phục hồi trạng thái resolving được gieo trước thành stopped rồi Tìm lại; `worker-lifecycle-result.json` |
+| Tampermonkey cài thật, fixture | PASS, 5 kiểm tra | Gói chính thức unpacked, quyền userscript thật, cài bundle bằng editor, GM API thật; `tampermonkey-result.json` |
+| Full-pages người dùng cung cấp | PASS, 0 request của resolver | Giải mã cục bộ đúng Gofile; `live-result.json`. Đây không phải bằng chứng HTTP |
+| Thăm dò HTTP full-pages | PASS | Trang thật trả 302 tới link-encrypted; `live-full-pages-probe.json` |
+| Extension trên trang thật và ô dán | PASS, 2 kiểm tra | Cùng đích Gofile; 13 request bên thứ ba bị harness chặn, 0 lỗi JavaScript trang; `live-extension-result.json` |
+| Tampermonkey trên trang thật | PASS, 3 kiểm tra | Cài bundle trong profile mới cho lượt này; đích Gofile, 20 request bên thứ ba bị chặn, 0 lỗi JavaScript trang; `live-tampermonkey-result.json` |
+| Giao diện | PASS trong kích thước đã xem | Desktop 1440×900, widget 390×844, popup 360px và 320px; đã xem ảnh, kiểm tra giới hạn ngang và focus |
+| Chrome/Edge cá nhân, Firefox/Violentmonkey | NOT RUN | Các lượt thực tế dùng Chromium QA; không cài vào profile cá nhân |
+| Điện thoại thật/tablet | NOT RUN | Mobile là viewport desktop, không phải thiết bị thật |
+| File Gofile còn tồn tại/tải được | NOT RUN | Dừng ở địa chỉ đích; không tải hoặc cài tài nguyên |
+| CAPTCHA/mật khẩu trên trang thật | NOT RUN | Test tiếp tục dùng thao tác fixture sinh data-href mới; không chứng minh mọi kiểu xác minh thật |
 
 ## Luồng trang thật
 
-Mẫu 1short người dùng gửi được xử lý theo chuỗi:
+URL full-pages người dùng gửi được xử lý theo hai cách:
 
 ```text
-1short link-encrypted → redirect-link → EZ4Short /st → Vexfile
+Dán vào popup → giải mã Base64 cục bộ → Gofile
+
+Mở URL trong trình duyệt
+    → 1short full-pages trả 302
+    → link-encrypted và dữ liệu trang
+    → redirect-link qua transport
+    → EZ4Short /st
+    → Gofile
 ```
 
-Địa chỉ tìm được qua cả hai phương thức:
+Đích nhất quán:
 
 ```text
-https://vexfile.com/download/2fezKvg9vP
+https://gofile.io/d/PKvjP6Yd
 ```
 
-HTTP test tự lấy token/phiên mới, không dùng lại token từ ảnh chụp cũ. Extension test lấy `data-href` của trang rồi service worker xử lý redirect. Test để `autoOpen` tắt; tab vẫn ở 1short sau khi có kết quả. Có 13 request quảng cáo/media bên thứ ba bị chặn trong test; đây là cấu hình harness và không phải tính năng chặn quảng cáo của bản phát hành.
+Extension và Tampermonkey giữ trang 1short sau khi có kết quả vì tự mở tắt. Không bấm tải file. Phản hồi của các dịch vụ hỗ trợ là thật; quảng cáo/media bên thứ ba bị chặn bởi harness. Cơ chế chặn này không được phát hành trong AdSkip.
 
-Các trace đính kèm che ciphertext, CSRF và publisher query. URL mẫu dài và profile không nằm trong ZIP phát hành. Kết quả lấy địa chỉ không xác nhận file còn khả dụng.
+## Các luồng 0.2 đã kiểm tra
 
-## Các thao tác đã kiểm tra
+- Dán URL từ tab không liên quan, giữ nguyên query có chữ ký và fragment; không điều hướng tab đó.
+- URL không hợp lệ có thông báo inline và `aria-invalid`, giữ kết quả trước đó.
+- Dán 1short, đóng/mở popup khôi phục kết quả và input; đóng popup khi request đang chờ vẫn hoàn tất job riêng.
+- Link hết hạn có thông báo và Tìm lại; không hiển thị tiếp tục cho lỗi không thể phục hồi bằng thao tác trên trang.
+- Popup mở bước thủ công trong tab được gắn với job; người dùng thao tác; Tiếp tục kiểm tra đọc DOM mới từ đúng tab.
+- Widget extension và userscript tiếp tục sau khi fixture tạo data-href mới.
+- Chuyển từ kết quả link đã dán sang phân tích tab dùng dữ liệu tab hiện tại.
+- Dừng, Tìm lại, trạng thái riêng từng tab, tự mở theo tùy chọn, đọc `/st` sớm, loop/hop limit, timeout/abort và body limit.
+- Tampermonkey thật gửi POST chứa CSRF mới và cookie phiên fixture, theo redirect và giữ query đích; full-pages giữ fragment mà không có request GM.
 
-**Userscript:** khởi tạo từ DOM; hợp đồng GM POST/redirect; giữ URL đầy đủ khi sao chép; thu gọn/mở lại; widget vừa 390×844; đọc `/st` từ document-start; trả hướng dẫn thủ công khi mở Tech8s riêng.
+Fixture HTTPS dùng chứng chỉ QA và ánh xạ hostname trong tham số Chromium; không sửa DNS/chứng chỉ hệ thống. Tampermonkey 5.4.1 lấy từ [gói stable chính thức](https://www.tampermonkey.net/crx/tampermonkey_stable.crx), SHA256 `a124e3189ecc0981ce79ef182dd3897a75fe22fc7bf0828e9d293ad7122d3d4d`. Chỉ bổ sung public key của gói vào manifest cục bộ để giữ ID; JavaScript nhà cung cấp không thay đổi. Gói Tampermonkey không được đóng cùng AdSkip.
 
-**Extension:** content script → service worker → redirect; trạng thái riêng cho hai tab; đọc `/st` sớm; popup lấy đúng tab đang mở; Dừng; Tìm lại sau Dừng; bật tự mở bằng thao tác người dùng và chuyển tới file host được nhận diện. Trong test fixture, trang đích cũng là fixture.
+## Phát hiện và giới hạn
 
-Đã sửa hai lỗi phát hiện qua kiểm thử: trang `/st` bị dừng trước khi có DOM khiến widget không gắn được; popup mở trong tab kiểm thử bị lấy trạng thái của chính tab popup. Sau sửa, cả hai suite đều qua.
+1. **Nạp tab mới trong harness:** Playwright interception có thể gắn sau request đầu tiên của `chrome.tabs.create`. Suite popup 0.2 đã chuyển sang server HTTPS fixture để kiểm tra tab mở thật nhất quán.
+2. **Profile Tampermonkey dùng lại:** sau khi mở lại gói unpacked/profile QA, manager cảnh báo không xác định được nguồn gốc script và không chạy. Lượt live cuối cài bundle bằng editor trong profile mới ngay trước kiểm thử và đã PASS. Không thay đổi kiểm tra bảo vệ của manager. Chưa chứng minh khôi phục script trong profile QA bị cảnh báo qua nhiều lần khởi động; hướng dẫn cài có cách xử lý cảnh báo theo UI.
+3. **Fragment qua HTTP:** quan sát thấy `fetch().url` bỏ fragment trong một chuỗi redirect fixture. URL trực tiếp `/st` và full-pages giữ fragment; không cam kết mọi fragment qua redirect HTTP/GM đều được giữ.
+4. **Worker restart:** trạng thái gián đoạn được gieo trước khi đóng worker thật. Không chứng minh việc đóng đúng lúc một request thật còn đang chạy hoặc mọi điều kiện treo worker.
+5. **Popup:** bài test mở `popup.html` như trang của extension để điều khiển và chụp ảnh. Chưa thử thao tác bấm biểu tượng toolbar trong Chrome/Edge cá nhân hay kích thước cửa sổ popup native.
+6. **Phiên và dữ liệu:** input/kết quả đầy đủ ở bộ nhớ phiên cục bộ có thể chứa API key hoặc query có chữ ký. Trace/JSON phát hành đã che query và payload; kết quả quá một giờ bị loại khi đọc, không có timer xóa nền.
+7. **Dịch vụ và file host:** một mẫu thật chỉ chứng minh định dạng/luồng đã thử ngày này. Gofile đã kiểm tra chuỗi tới URL, Yandex chỉ nhận diện domain, bí danh EZ4Short thiếu `url` và Tech8s riêng còn hướng dẫn thủ công.
 
-## Bằng chứng trong gói ZIP
+## Bằng chứng phát hành
 
-- `docs/evidence/userscript-result.json`
-- `docs/evidence/extension-result.json`
-- `docs/evidence/live-result.json`
-- `docs/evidence/live-extension-result.json`
-- `docs/screenshots/userscript-desktop.png`, `userscript-mobile.png`
-- `docs/screenshots/extension-desktop.png`, `extension-popup.png`, `live-extension.png`
+JSON trong `docs/evidence/`: `unit-result.json`, `userscript-result.json`, `extension-result.json`, `extension-v02-result.json`, `worker-lifecycle-result.json`, `tampermonkey-result.json`, `live-result.json`, `live-full-pages-probe.json`, `live-extension-result.json`, `live-tampermonkey-result.json`.
 
-Có thể chạy lại theo các lệnh trong README. Test fixture không cần link thật. Test live cần `ADSKIP_LIVE_URL` của bạn và gửi request ra mạng. Các dịch vụ có thể thay đổi DOM, endpoint hoặc dạng redirect; lúc đó adapter cần cập nhật.
+Ảnh trong `docs/screenshots/`: widget desktop/mobile, popup 0.2 resolved/invalid/manual/320px, widget manual, Tampermonkey desktop/mobile và hai ảnh trang thật.
+
+ZIP được tạo bằng `scripts/package.ps1` với danh sách thư mục/tệp cho phép. Không đóng `work/`, input thật, TLS key, profile, gói Tampermonkey, browser, `node_modules/`, `.git/` hay `.codegraph/`. Kiểm tra archive xác nhận manifest/bundle 0.2, module cần thiết và không có API key thật trong tệp văn bản.
+
+Chạy lại theo README. Các test live gửi request tới URL bạn cung cấp; dịch vụ có thể thay đổi DOM, endpoint hoặc redirect sau ngày kiểm thử.

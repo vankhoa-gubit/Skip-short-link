@@ -17,7 +17,7 @@ const root = path.resolve(__dirname, "..");
     headless: true, channel: "chromium", ...browserOptions(), viewport: { width: 1440, height: 900 },
     args: ["--disable-extensions-except=" + extension, "--load-extension=" + extension]
   });
-  const exchanges = []; let blockedRequests = 0; let pageErrors = 0; let result; let failure;
+  const exchanges = []; const checks = []; let blockedRequests = 0; let pageErrors = 0; let result; let inputResult; let failure; let browser;
   try {
     // Real responses on supported services; third-party ads and media are blocked.
     // No file host is requested and the default auto-open preference stays off.
@@ -52,6 +52,25 @@ const root = path.resolve(__dirname, "..");
     assert.ok(Core.SERVICE_HOSTS.has(new URL(page.url()).hostname), "Must not auto-open or download the resource");
     await panel.locator("summary").click();
     await page.screenshot({ path: path.join(root, "work/qa/live-extension.png") });
+    checks.push("Supplied live URL navigates through supported services and resolves a file-host address without auto-opening it");
+    const unrelated = await context.newPage(); await unrelated.goto("about:blank#input-check"); await unrelated.bringToFront();
+    const unrelatedId = await worker.evaluate(async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id);
+    assert.ok(Number.isInteger(unrelatedId));
+    await worker.evaluate((id) => chrome.tabs.update(id, { active: true }), unrelatedId);
+    const created = context.waitForEvent("page");
+    await worker.evaluate((url) => chrome.tabs.create({ url, active: false }), "chrome-extension://" + worker.url().split("/")[2] + "/popup.html");
+    const popup = await created;
+    popup.on("pageerror", () => { pageErrors++; });
+    await popup.waitForFunction(() => document.getElementById("status")?.textContent !== "Đang đọc trạng thái…");
+    await popup.locator("#link-input").fill(start); await popup.locator("#link-input").press("Enter");
+    await popup.locator("#status").getByText("Đã tìm được trang đích", { exact: true }).waitFor({ timeout: 30000 });
+    inputResult = await worker.evaluate(async () => (await chrome.storage.session.get("input")).input);
+    assert.equal(inputResult.phase, "resolved"); assert.equal(inputResult.url, result.url);
+    assert.equal(await popup.locator("#destination").getAttribute("href"), result.url);
+    assert.equal(unrelated.url(), "about:blank#input-check");
+    checks.push("Pasting the supplied URL in the actual popup produces the same destination and preserves the unrelated tab");
+    assert.equal(pageErrors, 0);
+    browser = context.browser().version();
   } catch (error) {
     // Keep token-bearing URLs out of logs even on browser/navigation failures.
     failure = error.name === "TimeoutError" ? "Timed out while waiting for a resolved destination" : "Live extension assertion or navigation failed";
@@ -61,7 +80,10 @@ const root = path.resolve(__dirname, "..");
   const report = {
     checkedAt: new Date().toISOString(),
     scope: "Unpacked MV3 extension, isolated Chromium profile, real supported-service responses; third-party ads/media blocked; no file download; auto-open off.",
-    outcome: failure ? "FAIL" : "PASS", result, exchanges, blockedRequests, pageErrors, failure
+    outcome: failure ? "FAIL" : "PASS", browser, checks,
+    result: result ? { ...result, sourceUrl: result.sourceUrl ? Core.describeUrl(result.sourceUrl) : undefined } : null,
+    inputResult: inputResult ? { ...inputResult, sourceUrl: inputResult.sourceUrl ? Core.describeUrl(inputResult.sourceUrl) : undefined } : null,
+    exchanges, blockedRequests, pageErrors, failure
   };
   fs.writeFileSync(path.join(root, "work/live-extension-result.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));

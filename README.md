@@ -1,40 +1,45 @@
-# AdSkip 0.1.0
+# AdSkip 0.2.0
 
-Userscript và extension Manifest V3 để lấy trang đích từ các dạng **1shortlink → EZ4Short** đã khảo sát. Mã nguồn được triển khai tại `D:\adskip`.
+Userscript và extension Manifest V3 để tìm trang đích từ các dạng **1shortlink → EZ4Short** đã khảo sát.
 
-Với URL 1short người dùng cung cấp, cả luồng HTTP và extension chạy trên trang thật đã tìm được:
+## Đã triển khai trong 0.2
 
-```text
-https://vexfile.com/download/2fezKvg9vP
-```
+- **Dán link trong popup:** tìm trang đích ngay cả khi đang mở tab khác; khôi phục link và kết quả khi mở lại popup.
+- **Tiếp tục kiểm tra:** sau khi hoàn tất thao tác trên trang, đọc lại DOM và phiên hiện tại để tìm đích.
+- **Xử lý phiên bị ngắt:** Dừng loại bỏ kết quả đang chạy; phiên bị ngắt khi service worker khởi động lại chuyển sang trạng thái có thể Tìm lại.
+- **Hỗ trợ full-pages:** đọc URL đích từ dạng `/api/v1/full-pages?api_key=…&url=…&type=2` của 1shortlink, giải mã lớp Base64 cục bộ.
+- Phân biệt link hết hạn, phiên hết hạn, giới hạn request và dịch vụ tạm ngừng.
 
-Kết quả này xác nhận việc lấy địa chỉ đích. Khả năng tải tài nguyên tại Vexfile chưa được xác nhận.
+Link người dùng cung cấp ngày 09/10/2026 đã cho đích **[Gofile](https://gofile.io/d/PKvjP6Yd)** qua extension, Tampermonkey trên trang thật và ô dán trong popup. Đây là xác nhận URL đích; chưa xác nhận khả năng tải file.
 
 ## Dùng ngay
 
-Cài một trong hai bản theo [hướng dẫn cài đặt](HUONG_DAN_CAI_DAT.md):
+Tải `dist/AdSkip-0.2.0.zip`, giải nén và làm theo [hướng dẫn cài đặt](HUONG_DAN_CAI_DAT.md):
 
-- **Extension Chrome/Edge:** nạp thư mục `D:\adskip\extension` bằng **Load unpacked**.
-- **Userscript:** tạo script trong Tampermonkey rồi dán toàn bộ `D:\adskip\dist\adskip.user.js`.
+- **Extension Chrome/Edge:** Load unpacked thư mục `extension` có `manifest.json`.
+- **Tampermonkey:** tạo hoặc cập nhật script bằng toàn bộ nội dung `dist/adskip.user.js`, rồi Ctrl+S.
 
-Mở link gốc. Bảng AdSkip xuất hiện ở góc dưới bên phải; chọn **Mở trang đích** hoặc **Sao chép**. Tùy chọn **Mở trang đích khi tìm được** mặc định tắt. **Dừng**, **Tìm lại**, **Thu gọn** và danh sách các bước có sẵn trong bảng.
+Mở popup, dán link và chọn **Tìm trang đích**, hoặc chọn **Phân tích tab này**. Widget cũng tự xử lý khi mở trang được hỗ trợ. Nếu cần thao tác trên trang, hoàn tất bước đó rồi chọn **Tiếp tục kiểm tra**. Với link đã dán, chọn **Mở bước hiện tại** trước để tiện ích đọc đúng tab.
+
+**Mở trang đích**, **Sao chép**, **Dừng**, **Tìm lại**, **Thu gọn** và danh sách bước được cung cấp khi phù hợp. Tự mở mặc định tắt; tùy chọn này áp dụng cho luồng phân tích tab. Link đã dán được mở bằng nút rõ ràng trong popup.
 
 ## Phạm vi hiện tại
 
 | Dạng link | Xử lý |
 | --- | --- |
-| `1shortlink.com/link-encrypted/...` có lời gọi `getLink(...)` như mẫu khảo sát | Đọc `data-href` sẵn có hoặc gọi endpoint bình thường với cookie và CSRF mới; theo redirect |
-| `ez4short.com/st?...&url=...` | Lấy URL đích trực tiếp, giữ query và chữ ký của URL |
-| URL `/st` với `url` mã hóa một hoặc hai lần | Đã kiểm tra bằng fixture |
-| Bí danh ngắn của EZ4Short không có `url` | Hiển thị cần thao tác trên trang |
-| Bài Tech8s được mở riêng | Hiển thị cần quay lại link gốc; không đủ dữ liệu để suy ra file |
-| CAPTCHA, mật khẩu, trang chặn truy cập, dịch vụ khác | Hiển thị trạng thái thủ công hoặc lỗi cụ thể |
+| 1shortlink `/api/v1/full-pages` dạng đã khảo sát | Giải mã URL đích cục bộ, giữ query/fragment; không cần request của resolver |
+| 1shortlink `/link-encrypted/...` có `getLink(...)` hoặc `data-href` | Đọc dữ liệu trang hoặc gọi endpoint bình thường với cookie/CSRF mới, theo redirect |
+| EZ4Short `/st?...&url=...`, lớp bọc mã hóa 1–2 lần | Đọc URL đích, giữ query/chữ ký; fragment trực tiếp đã kiểm thử |
+| Bí danh EZ4Short không có `url`, Tech8s mở riêng | Hướng dẫn thao tác thủ công hoặc quay lại link gốc |
+| CAPTCHA, mật khẩu, chặn truy cập | Dừng để người dùng hoàn tất bước trên trang rồi kiểm tra lại |
 
-Vexfile, Gofile và các domain chia sẻ Yandex được nhận diện làm trang đích. Chỉ luồng tới Vexfile được kiểm chứng với mẫu thật trong lần triển khai này. Tool không tự tải hoặc cài tài nguyên. Bản này cũng không có bộ lọc quảng cáo tổng quát.
+Vexfile, Gofile và các domain chia sẻ Yandex được nhận diện làm trang đích. Bản 0.2 đã kiểm tra chuỗi thật đến Gofile. Không có bộ lọc quảng cáo tổng quát. Khi URL đi qua HTTP redirect, fragment phụ thuộc transport của trình duyệt; xem [giới hạn kiểm thử](docs/KIEM_THU.md).
 
-## Dựng lại và kiểm thử
+URL đầy đủ được giữ cục bộ để mở/sao chép và Tìm lại đúng link, kể cả query có API key. Extension lưu link trong `storage.session`; tùy chọn tự mở trong `storage.local`. Kết quả quá một giờ bị loại khi đọc lại. Trace che query và payload; AdSkip không có backend hay telemetry.
 
-Node.js 20 trở lên. Dựng bundle và chạy unit test không cần cài dependency:
+## Dựng và kiểm thử
+
+Node.js 20 trở lên. Build và unit test không cần cài dependency:
 
 ```powershell
 Set-Location 'D:\adskip'
@@ -42,33 +47,42 @@ npm run build
 npm test
 ```
 
-Để chạy kiểm thử trình duyệt từ package đã khóa phiên bản:
+Kiểm thử trình duyệt dùng dependency đã khóa phiên bản:
 
 ```powershell
 npm ci
 npx playwright install chromium
 npm run test:browser
 npm run test:extension
+npm run test:extension:v02
+npm run test:worker
 ```
 
-Hai kiểm thử trên dùng trang fixture. Userscript dùng GM API shim; extension được nạp thật với các API `chrome.*`. Các lệnh sau gửi request tới URL thật do bạn chỉ định:
+`test:browser` dùng GM shim. Các suite extension nạp tiện ích thật và dùng `chrome.*` thật. `test:extension:v02` dùng server HTTPS cục bộ, cần OpenSSL (hoặc `ADSKIP_OPENSSL_PATH`); ánh xạ hostname và bỏ kiểm tra chứng chỉ chỉ trong profile QA.
+
+Để kiểm tra **Tampermonkey thật**, cung cấp thư mục gói Tampermonkey chính thức đã giải nén bằng `ADSKIP_TAMPERMONKEY_PATH`, rồi chạy `npm run test:tampermonkey`. Suite cài bundle bằng editor và cấp quyền userscript trong profile riêng. Gói Tampermonkey không nằm trong ZIP AdSkip.
+
+Các lệnh sau dùng link do bạn cung cấp:
 
 ```powershell
 $env:ADSKIP_LIVE_URL = 'https://1shortlink.com/link-encrypted/your-link'
 npm run test:live
 npm run test:live-extension
+npm run test:live:tampermonkey
 ```
 
-`test:live-extension` dùng profile riêng và chặn quảng cáo/media bên thứ ba trong môi trường kiểm thử. Cơ chế chặn này không được đóng gói vào extension.
+Với full-pages, `test:live` giải mã cục bộ và ghi rõ 0 request. `test:live-extension` thăm trang thật và kiểm tra thêm ô dán. `test:live:tampermonkey` cần gói manager đã giải nén, cài bundle qua editor trong profile mới cho mỗi lượt. Harness chặn quảng cáo/media bên thứ ba; cấu hình này không thuộc tính năng phát hành.
 
-Có thể dùng Playwright/Chromium đã cài sẵn bằng `ADSKIP_PLAYWRIGHT_PATH` và `ADSKIP_BROWSER_PATH`. Bằng chứng và profile kiểm thử được ghi vào `work/` và không nằm trong gói phát hành.
+Có thể dùng Chromium/Playwright có sẵn qua `ADSKIP_BROWSER_PATH` và `ADSKIP_PLAYWRIGHT_PATH`. Bằng chứng thô và profile nằm trong `work/`, được bỏ khỏi ZIP.
 
 ## Mã nguồn và bằng chứng
 
-- `src/`: logic dùng chung, resolver, transport và widget.
-- `extension/`: bản nạp trực tiếp vào Chrome/Edge; các module chung được build từ `src/`.
+- `src/`: logic chung, resolver, transport và widget.
+- `extension/`: thư mục nạp trực tiếp; module chung được build từ `src/`.
 - `dist/adskip.user.js`: userscript hoàn chỉnh.
-- `tests/`: unit, fixture browser và kiểm thử trang thật.
-- [Kiến trúc](docs/KIEN_TRUC.md), [báo cáo kiểm thử](docs/KIEM_THU.md).
+- `tests/`: unit, runtime fixture, vòng đời worker và trang thật.
+- [Kiến trúc](docs/KIEN_TRUC.md), [báo cáo kiểm thử 0.2](docs/KIEM_THU.md), ảnh và JSON đã che dữ liệu trong `docs/`.
 
-CodeGraph đã được khởi tạo ở `D:\adskip\.codegraph`. `work/`, `.codegraph/` và `node_modules/` được bỏ khỏi gói phát hành. Khi sửa module chung, chạy lại build rồi reload extension và tab đang mở.
+Sau khi sửa module chung, build lại, Reload extension và tải lại tab; Tampermonkey cần lưu bundle mới. CodeGraph nằm ở `.codegraph/`; index, dependency và dữ liệu QA không thuộc gói phát hành.
+
+Đóng gói lại trên Windows sau khi build: `.\scripts\package.ps1`. Script dùng danh sách tệp/thư mục cho phép và giữ đúng cấu trúc cài đặt trong ZIP.

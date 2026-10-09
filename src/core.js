@@ -5,7 +5,7 @@
   else root.AdSkipCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
   const SERVICE_HOSTS = new Set(["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net"]);
   const FILE_HOSTS = ["vexfile.com", "gofile.io", "gofile.me", "disk.yandex.ru", "disk.yandex.com", "yadi.sk"];
 
@@ -43,6 +43,30 @@
     return url.hostname + (url.pathname.length > 100 ? url.pathname.slice(0, 100) + "…" : url.pathname);
   }
   function visitKey(input) { const url = urlOf(input); url.hash = ""; return url.href; }
+  function inputUrl(value) {
+    const url = urlOf(value);
+    if (serviceOf(url) === "unknown" || (url.port && url.port !== "443")) {
+      throw new AdSkipError("UNSUPPORTED_INPUT", "Dán link 1shortlink, EZ4Short, Tech8s hoặc trang đích được hỗ trợ.");
+    }
+    return url.href;
+  }
+  function canContinue(state) {
+    return state?.phase === "manual" && ["NEEDS_VERIFICATION", "SESSION_EXPIRED", "NON_JSON", "LINK_UNAVAILABLE", "FORM_NOT_FOUND", "EZ4_ALIAS"].includes(state.code);
+  }
+  function oneShortDestination(input) {
+    const page = urlOf(input);
+    if (serviceOf(page) !== "1short" || !/^\/api\/v1\/full-pages\/?$/.test(page.pathname)) return null;
+    const values = [...page.search.slice(1).matchAll(/(?:^|&)url=([^&]*)/g)];
+    if (!values.length) return null;
+    if (values.length !== 1) throw new AdSkipError("AMBIGUOUS_TARGET", "Link 1short chứa nhiều tham số URL đích.");
+    let decoded;
+    try {
+      const encoded = decodeURIComponent(values[0][1]);
+      if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error("Invalid Base64");
+      decoded = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0)));
+    } catch { throw new AdSkipError("BAD_ENCODING", "Tham số URL của link full-pages bị lỗi mã hóa Base64."); }
+    return urlOf(decoded).href;
+  }
   function decodeEntities(text) {
     return text.replace(/&amp;|&quot;|&#39;|&#x([0-9a-f]+);|&#(\d+);/gi, (all, hex, decimal) => {
       if (all.toLowerCase() === "&amp;") return "&";
@@ -114,10 +138,13 @@
     return method === "GET" && (url.pathname === "/redirect-link" || url.pathname.startsWith("/link-encrypted/") || /^\/ll\/[^/]+\/?$/.test(url.pathname));
   }
   function httpError(response) {
-    if ([401, 403, 429, 503].includes(response.status)) return new AdSkipError("NEEDS_VERIFICATION", "Trang yêu cầu xác minh hoặc đang giới hạn lượt truy cập. Hoàn tất thao tác trên trang rồi thử lại.");
+    if ([401, 403].includes(response.status)) return new AdSkipError("NEEDS_VERIFICATION", "Trang yêu cầu xác minh. Hoàn tất thao tác trên trang rồi tiếp tục kiểm tra.");
+    if (response.status === 419) return new AdSkipError("SESSION_EXPIRED", "Phiên hoặc token đã hết hạn. Tải lại trang, hoàn tất thao tác rồi tiếp tục kiểm tra.");
+    if (response.status === 429) return new AdSkipError("RATE_LIMITED", "Dịch vụ đang giới hạn lượt truy cập. Chờ một lúc rồi chọn Tìm lại.");
+    if (response.status === 503) return new AdSkipError("SERVICE_UNAVAILABLE", "Dịch vụ tạm thời không phản hồi. Thử lại sau.");
     if ([404, 410].includes(response.status)) return new AdSkipError("EXPIRED_LINK", "Link không còn tồn tại hoặc đã hết hạn.");
     if (response.status < 200 || response.status >= 300) return new AdSkipError("HTTP_ERROR", "Trang trung gian trả HTTP " + response.status + ". Thử lại sau.");
     return null;
   }
-  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
+  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
 });

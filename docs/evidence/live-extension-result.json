@@ -1,11 +1,18 @@
 {
-  "checkedAt": "2026-10-08T09:03:06.027Z",
+  "checkedAt": "2026-10-09T08:17:58.767Z",
   "scope": "Unpacked MV3 extension, isolated Chromium profile, real supported-service responses; third-party ads/media blocked; no file download; auto-open off.",
   "outcome": "PASS",
+  "browser": "151.0.7922.34",
+  "checks": [
+    "Supplied live URL navigates through supported services and resolves a file-host address without auto-opening it",
+    "Pasting the supplied URL in the actual popup produces the same destination and preserves the unrelated tab"
+  ],
   "result": {
     "code": null,
     "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
     "phase": "resolved",
+    "source": "tab",
+    "sourceUrl": "1shortlink.com/link-encrypted/…",
     "steps": [
       {
         "label": "Đọc URL mà trang 1short đã nhận",
@@ -21,13 +28,37 @@
       },
       {
         "label": "Đã tìm địa chỉ đích",
-        "url": "vexfile.com/download/2fezKvg9vP"
+        "url": "gofile.io/d/PKvjP6Yd"
       }
     ],
-    "updatedAt": 1791450185192,
-    "url": "https://vexfile.com/download/2fezKvg9vP"
+    "updatedAt": 1791533876047,
+    "url": "https://gofile.io/d/PKvjP6Yd"
+  },
+  "inputResult": {
+    "code": null,
+    "message": "Đã tìm địa chỉ đích. Chưa kiểm tra tình trạng file.",
+    "phase": "resolved",
+    "source": "input",
+    "sourceUrl": "1shortlink.com/api/v1/full-pages",
+    "steps": [
+      {
+        "label": "Đọc URL đích từ link full-pages",
+        "url": "1shortlink.com/api/v1/full-pages"
+      },
+      {
+        "label": "Đã tìm địa chỉ đích",
+        "url": "gofile.io/d/PKvjP6Yd"
+      }
+    ],
+    "updatedAt": 1791533878123,
+    "url": "https://gofile.io/d/PKvjP6Yd"
   },
   "exchanges": [
+    {
+      "method": "GET",
+      "request": "1shortlink.com/api/v1/full-pages",
+      "status": 302
+    },
     {
       "method": "GET",
       "request": "1shortlink.com/link-encrypted/…",

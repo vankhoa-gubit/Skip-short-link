@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AdSkip",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tìm trang đích cho các dạng 1shortlink và EZ4Short đã kiểm chứng.",
   "minimum_chrome_version": "120",
   "permissions": ["storage", "activeTab", "webNavigation"],

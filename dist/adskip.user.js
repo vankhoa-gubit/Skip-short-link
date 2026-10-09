@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AdSkip: 1short & EZ4Short
 // @namespace    local.adskip
-// @version      0.1.0
+// @version      0.2.0
 // @description  Tìm trang đích của các dạng 1shortlink và EZ4Short đã kiểm chứng.
 // @match        https://1shortlink.com/*
 // @match        https://www.1shortlink.com/*
@@ -29,7 +29,7 @@
   else root.AdSkipCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
   const SERVICE_HOSTS = new Set(["1shortlink.com", "www.1shortlink.com", "ez4short.com", "www.ez4short.com", "tech8s.net", "www.tech8s.net"]);
   const FILE_HOSTS = ["vexfile.com", "gofile.io", "gofile.me", "disk.yandex.ru", "disk.yandex.com", "yadi.sk"];
 
@@ -67,6 +67,30 @@
     return url.hostname + (url.pathname.length > 100 ? url.pathname.slice(0, 100) + "…" : url.pathname);
   }
   function visitKey(input) { const url = urlOf(input); url.hash = ""; return url.href; }
+  function inputUrl(value) {
+    const url = urlOf(value);
+    if (serviceOf(url) === "unknown" || (url.port && url.port !== "443")) {
+      throw new AdSkipError("UNSUPPORTED_INPUT", "Dán link 1shortlink, EZ4Short, Tech8s hoặc trang đích được hỗ trợ.");
+    }
+    return url.href;
+  }
+  function canContinue(state) {
+    return state?.phase === "manual" && ["NEEDS_VERIFICATION", "SESSION_EXPIRED", "NON_JSON", "LINK_UNAVAILABLE", "FORM_NOT_FOUND", "EZ4_ALIAS"].includes(state.code);
+  }
+  function oneShortDestination(input) {
+    const page = urlOf(input);
+    if (serviceOf(page) !== "1short" || !/^\/api\/v1\/full-pages\/?$/.test(page.pathname)) return null;
+    const values = [...page.search.slice(1).matchAll(/(?:^|&)url=([^&]*)/g)];
+    if (!values.length) return null;
+    if (values.length !== 1) throw new AdSkipError("AMBIGUOUS_TARGET", "Link 1short chứa nhiều tham số URL đích.");
+    let decoded;
+    try {
+      const encoded = decodeURIComponent(values[0][1]);
+      if (!encoded || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error("Invalid Base64");
+      decoded = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0)));
+    } catch { throw new AdSkipError("BAD_ENCODING", "Tham số URL của link full-pages bị lỗi mã hóa Base64."); }
+    return urlOf(decoded).href;
+  }
   function decodeEntities(text) {
     return text.replace(/&amp;|&quot;|&#39;|&#x([0-9a-f]+);|&#(\d+);/gi, (all, hex, decimal) => {
       if (all.toLowerCase() === "&amp;") return "&";
@@ -138,12 +162,15 @@
     return method === "GET" && (url.pathname === "/redirect-link" || url.pathname.startsWith("/link-encrypted/") || /^\/ll\/[^/]+\/?$/.test(url.pathname));
   }
   function httpError(response) {
-    if ([401, 403, 429, 503].includes(response.status)) return new AdSkipError("NEEDS_VERIFICATION", "Trang yêu cầu xác minh hoặc đang giới hạn lượt truy cập. Hoàn tất thao tác trên trang rồi thử lại.");
+    if ([401, 403].includes(response.status)) return new AdSkipError("NEEDS_VERIFICATION", "Trang yêu cầu xác minh. Hoàn tất thao tác trên trang rồi tiếp tục kiểm tra.");
+    if (response.status === 419) return new AdSkipError("SESSION_EXPIRED", "Phiên hoặc token đã hết hạn. Tải lại trang, hoàn tất thao tác rồi tiếp tục kiểm tra.");
+    if (response.status === 429) return new AdSkipError("RATE_LIMITED", "Dịch vụ đang giới hạn lượt truy cập. Chờ một lúc rồi chọn Tìm lại.");
+    if (response.status === 503) return new AdSkipError("SERVICE_UNAVAILABLE", "Dịch vụ tạm thời không phản hồi. Thử lại sau.");
     if ([404, 410].includes(response.status)) return new AdSkipError("EXPIRED_LINK", "Link không còn tồn tại hoặc đã hết hạn.");
     if (response.status < 200 || response.status >= 300) return new AdSkipError("HTTP_ERROR", "Trang trung gian trả HTTP " + response.status + ". Thử lại sau.");
     return null;
   }
-  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
+  return { VERSION, SERVICE_HOSTS, FILE_HOSTS, AdSkipError, urlOf, hostIs, isFileHost, serviceOf, describeUrl, visitKey, inputUrl, canContinue, oneShortDestination, decodeEntities, ez4Destination, oneShortInit, oneShortReply, buttonCandidate, canRequest, httpError };
 });
 
 
@@ -198,6 +225,8 @@
           emit("Gặp dịch vụ chưa hỗ trợ", cursor);
           return finish("manual", "Đã tìm được bước kế tiếp nhưng dịch vụ này chưa được hỗ trợ.", cursor, "UNSUPPORTED_HOST");
         }
+        const embedded = Core.oneShortDestination(cursor);
+        if (embedded) { emit("Đọc URL đích từ link full-pages", cursor); cursor = embedded; continue; }
         if (hop === 0 && options.initialCandidate) {
           emit("Đọc URL mà trang 1short đã nhận", cursor);
           cursor = Core.urlOf(options.initialCandidate, cursor).href;
@@ -223,7 +252,7 @@
     } catch (error) {
       const code = error.code || (error.name === "AbortError" ? "CANCELLED" : "NETWORK_ERROR");
       const message = error instanceof Core.AdSkipError ? error.message : code === "CANCELLED" ? "Đã dừng xử lý." : "Không kết nối được trang trung gian. Thử lại khi trang đã tải xong.";
-      return finish(code === "CANCELLED" ? "stopped" : ["NEEDS_VERIFICATION", "NON_JSON", "LINK_UNAVAILABLE"].includes(code) ? "manual" : "error", message, cursor || null, code);
+      return finish(code === "CANCELLED" ? "stopped" : ["NEEDS_VERIFICATION", "SESSION_EXPIRED", "NON_JSON", "LINK_UNAVAILABLE"].includes(code) ? "manual" : "error", message, cursor || null, code);
     }
   }
   return { resolve };
@@ -258,7 +287,7 @@
   }
   function prepareEz4Page() {
     let target;
-    try { target = Core.ez4Destination(location.href); } catch { return null; }
+    try { target = Core.ez4Destination(location.href) || Core.oneShortDestination(location.href); } catch { return null; }
     if (!target || !Core.isFileHost(target)) return null;
     window.stop();
     // document-start can stop parsing before an <html> element exists.
@@ -304,8 +333,11 @@
     open.target = "_blank"; open.rel = "noopener noreferrer";
     const copy = element("button", "Sao chép", "button hidden"); copy.type = "button";
     const retry = element("button", "Tìm link", "button"); retry.type = "button";
+    const resume = element("button", "Tiếp tục kiểm tra", "button hidden"); resume.type = "button";
     const stop = element("button", "Dừng", "button hidden"); stop.type = "button";
-    actions.append(open, copy, retry, stop);
+    const guidance = element("p", "Hoàn tất thao tác trên trang đang mở rồi chọn Tiếp tục kiểm tra.", "guidance hidden");
+    guidance.style.cssText = "margin-top:12px;font-size:12px;color:#795018;line-height:1.5";
+    actions.append(open, copy, resume, retry, stop);
     const preference = element("label", undefined, "preferences");
     const checkbox = element("input"); checkbox.type = "checkbox"; checkbox.checked = autoOpen;
     const preferenceText = element("span", "Mở trang đích khi tìm được");
@@ -313,7 +345,7 @@
     const details = element("details"); const summary = element("summary", "Các bước đã xử lý");
     const steps = element("ol", undefined, "steps"); details.append(summary, steps);
     const toast = element("p", "", "toast"); toast.setAttribute("role", "status");
-    body.append(status, message, destination, actions, preference, details, toast);
+    body.append(status, message, guidance, destination, actions, preference, details, toast);
     panel.append(header, body);
     const launcher = element("button", "AdSkip", "launcher hidden");
     launcher.type = "button"; launcher.setAttribute("aria-label", "Mở bảng AdSkip");
@@ -324,6 +356,7 @@
     collapse.addEventListener("click", () => { panel.classList.add("hidden"); launcher.classList.remove("hidden"); launcher.focus(); });
     launcher.addEventListener("click", () => { panel.classList.remove("hidden"); launcher.classList.add("hidden"); collapse.focus(); });
     retry.addEventListener("click", () => handlers.onStart());
+    resume.addEventListener("click", () => (handlers.onContinue || handlers.onStart)());
     stop.addEventListener("click", () => handlers.onStop());
     checkbox.addEventListener("change", () => handlers.onPreference(checkbox.checked));
     copy.addEventListener("click", async () => {
@@ -349,6 +382,10 @@
       } else { destination.removeAttribute("href"); open.removeAttribute("href"); }
       retry.disabled = next.phase === "resolving";
       retry.textContent = next.phase === "idle" ? "Tìm link" : "Tìm lại";
+      const resumable = Core.canContinue(next);
+      resume.classList.toggle("hidden", !resumable);
+      guidance.classList.toggle("hidden", !resumable);
+      retry.classList.toggle("hidden", resumable);
       stop.classList.toggle("hidden", next.phase !== "resolving");
       steps.replaceChildren();
       for (const step of next.steps || []) {
@@ -358,9 +395,19 @@
     }
     return { render, setPreference(value) { checkbox.checked = !!value; }, host, shadow };
   }
-  async function pageHints(signal) {
+  async function pageHints(signal, waitMs = 8000) {
     if (Core.serviceOf(location.href) !== "1short") return {};
-    if (document.readyState === "loading") await new Promise((resolve) => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    if (document.readyState === "loading") await new Promise((resolve, reject) => {
+      let timer;
+      const cleanup = () => { clearTimeout(timer); document.removeEventListener("DOMContentLoaded", ready); signal?.removeEventListener("abort", abort); };
+      const ready = () => { cleanup(); resolve(); };
+      const abort = () => { cleanup(); reject(new DOMException("Aborted", "AbortError")); };
+      document.addEventListener("DOMContentLoaded", ready, { once: true });
+      signal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(ready, waitMs);
+      if (signal?.aborted) abort();
+    });
     const candidate = () => document.getElementById("redirect-link")?.getAttribute("data-href");
     let result = candidate();
     if (!result && document.getElementById("redirect-link")) {
@@ -370,11 +417,12 @@
         const observer = new MutationObserver(() => { const value = candidate(); if (value) finish(value); });
         const abort = () => finish(null);
         observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-href"], childList: true });
-        timer = setTimeout(() => finish(null), 8000);
+        timer = setTimeout(() => finish(null), waitMs);
         if (signal?.aborted) finish(null); else signal?.addEventListener("abort", abort, { once: true });
       });
     }
-    return { initialCandidate: result || undefined, initialHtml: document.documentElement.outerHTML.slice(0, 1048576) };
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return { initialCandidate: result || undefined, initialHtml: document.documentElement?.outerHTML.slice(0, 1048576) };
   }
   root.AdSkipPanel = { mount, pageHints, prepareEz4Page };
 })(typeof globalThis !== "undefined" ? globalThis : this);
@@ -397,7 +445,7 @@
   const request = (url, config = {}) => new Promise((resolve, reject) => {
     if (!Core.canRequest(url, config.method || "GET")) { reject(new Core.AdSkipError("REQUEST_DENIED", "Địa chỉ yêu cầu chưa được hỗ trợ.")); return; }
     if (config.signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
-    const abort = () => { handle.abort(); reject(new DOMException("Aborted", "AbortError")); };
+    const abort = () => { cleanup(); handle.abort(); reject(new DOMException("Aborted", "AbortError")); };
     const cleanup = () => config.signal?.removeEventListener("abort", abort);
     const handle = GM_xmlhttpRequest({
       method: config.method || "GET", url, timeout: 15000, anonymous: false,
@@ -411,11 +459,12 @@
     config.signal?.addEventListener("abort", abort, { once: true });
   });
   const maybeOpen = () => {
-    if (autoOpen && lastResult?.phase === "resolved" && Core.isFileHost(lastResult.url) && Core.visitKey(lastResult.url) !== Core.visitKey(location.href)) location.replace(lastResult.url);
+    if (autoOpen && lastResult?.phase === "resolved" && Core.isFileHost(lastResult.url) && Core.SERVICE_HOSTS.has(location.hostname) && Core.visitKey(lastResult.sourceUrl) === Core.visitKey(location.href) && Core.visitKey(lastResult.url) !== Core.visitKey(location.href)) location.replace(lastResult.url);
   };
   const panel = Panel.mount({
     onStart: start,
-    onStop() { generation++; controller?.abort(); panel.render({ phase: "stopped", message: "Đã dừng xử lý.", steps: [] }); },
+    onContinue: start,
+    onStop() { generation++; controller?.abort(); lastResult = null; panel.render({ phase: "stopped", message: "Đã dừng xử lý.", code: "CANCELLED", steps: [] }); },
     onPreference(value) { autoOpen = value; GM_setValue("autoOpen", value); maybeOpen(); },
     onCopy(url) { GM_setClipboard(url, "text"); }
   }, autoOpen);
@@ -423,16 +472,18 @@
   async function start() {
     controller?.abort(); controller = new AbortController();
     const current = ++generation;
+    const sourceUrl = location.href;
+    lastResult = null;
     panel.render({ phase: "resolving", message: "Đang đọc URL mà trang cung cấp…", steps: [] });
     try {
       const hints = await Panel.pageHints(controller.signal);
       if (generation !== current) return;
-      const result = await Resolver.resolve(location.href, {
+      const result = await Resolver.resolve(sourceUrl, {
         ...hints, request, signal: controller.signal,
         onStep(step, steps) { if (generation === current) panel.render({ phase: "resolving", message: step.label + "…", steps }); }
       });
-      if (generation !== current) return;
-      lastResult = result; panel.render(result); maybeOpen();
+      if (generation !== current || Core.visitKey(sourceUrl) !== Core.visitKey(location.href)) return;
+      lastResult = { ...result, sourceUrl }; panel.render(lastResult); maybeOpen();
     } catch { if (generation === current) panel.render({ phase: "error", message: "Không đọc được dữ liệu trang. Tải lại trang rồi thử lại.", steps: [] }); }
   }
   await start();

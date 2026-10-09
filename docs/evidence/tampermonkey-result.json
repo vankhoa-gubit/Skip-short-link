@@ -1,0 +1,54 @@
+{
+  "checkedAt": "2026-10-09T08:37:14.452Z",
+  "mode": "Official Tampermonkey installed unpacked in isolated Chromium; bundle saved through its editor; real GM APIs and local HTTPS fixture server; test certificate and browser-only host mapping",
+  "outcome": "PASS",
+  "checks": [
+    "Bundle installed through Tampermonkey's real editor and native userscript permission",
+    "Real GM_xmlhttpRequest POST includes current CSRF and session cookie, follows redirect and preserves signed destination",
+    "Installed Tampermonkey widget fits 390 × 844",
+    "Installed userscript continues with new DOM after manual action",
+    "Installed userscript decodes full-pages and keeps the fragment without a GM request"
+  ],
+  "errors": [],
+  "exchanges": [
+    {
+      "method": "GET",
+      "path": "/link-encrypted/tamper-fixture"
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "method": "POST",
+      "path": "/get-link-download"
+    },
+    {
+      "method": "GET",
+      "path": "/redirect-link"
+    },
+    {
+      "method": "GET",
+      "path": "/st"
+    },
+    {
+      "method": "GET",
+      "path": "/link-encrypted/manual"
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/full-pages"
+    },
+    {
+      "method": "GET",
+      "path": "/favicon.ico"
+    }
+  ],
+  "browser": "151.0.7922.34",
+  "managerVersion": "5.4.1",
+  "profile": "work\\tampermonkey-test-profile-bTWdqU"
+}

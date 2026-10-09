@@ -16,7 +16,7 @@ fs.mkdirSync(dist, { recursive: true });
 const header = `// ==UserScript==
 // @name         AdSkip: 1short & EZ4Short
 // @namespace    local.adskip
-// @version      0.1.0
+// @version      0.2.0
 // @description  Tìm trang đích của các dạng 1shortlink và EZ4Short đã kiểm chứng.
 // @match        https://1shortlink.com/*
 // @match        https://www.1shortlink.com/*

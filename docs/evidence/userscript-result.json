@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-08T08:59:08.972Z",
+  "checkedAt": "2026-10-09T07:41:32.897Z",
   "mode": "Chromium with intercepted fixtures and GM API shim; not an installed Tampermonkey test",
   "checks": [
     "Userscript: DOM/page init → GM POST/redirect contract (mock) → complete signed destination",
@@ -7,7 +7,8 @@
     "Userscript: collapse and restore",
     "Userscript: widget fits 390 × 844",
     "Userscript: document-start captures /st target before page scripts",
-    "Userscript: bare Tech8s article gives an actionable manual state"
+    "Userscript: bare Tech8s article gives an actionable manual state",
+    "Userscript: manual continuation reads the fresh DOM after user action"
   ],
   "errors": []
 }

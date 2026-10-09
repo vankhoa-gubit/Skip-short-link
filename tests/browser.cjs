@@ -12,6 +12,8 @@ const pages = {
   one: '<!doctype html><html><head><title>1short fixture</title></head><body><h1>Confirm continue</h1><button id="redirect-link">Continue</button><script>getLink("/get-link-download", "fixture", "encrypted_link", "fixture-csrf")</script></body></html>',
   empty: "<!doctype html><html><body><h1>Article fixture</h1></body></html>"
 };
+const manualUrl = "https://1shortlink.com/link-encrypted/manual";
+const manualHtml = '<!doctype html><html><body><h1>Manual fixture</h1><button id="verify">Hoàn tất thao tác</button><script>document.getElementById("verify").addEventListener("click",()=>{const button=document.createElement("button");button.id="redirect-link";button.setAttribute("data-href",' + JSON.stringify(st) + ');document.body.append(button);});</script></body></html>';
 const gmShim = `
 window.__qaRequests=[];window.__qaClipboard=null;window.__qaPreferences={};
 window.GM_getValue=(key,fallback)=>window.__qaPreferences[key]??fallback;
@@ -35,7 +37,7 @@ async function fixtures(context) {
       return route.fulfill({ status: 200, headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ status: "success", redirect_url: intermediary }) });
     }
     if (url.hostname === "1shortlink.com" && url.pathname === "/redirect-link") return route.fulfill({ status: 302, headers: { ...headers, location: st }, body: "" });
-    return route.fulfill({ status: 200, headers, body: url.hostname === "1shortlink.com" ? pages.one : pages.empty });
+    return route.fulfill({ status: 200, headers, body: url.href === manualUrl ? manualHtml : url.hostname === "1shortlink.com" ? pages.one : pages.empty });
   });
 }
 async function goto(page, url) { try { await page.goto(url, { waitUntil: "commit", timeout: 15000 }); } catch (error) { if (!/ERR_ABORTED/.test(error.message)) throw error; } }
@@ -95,6 +97,13 @@ async function waitForPanel(page, text) {
     await waitForPanel(article, "Cần thao tác trên trang");
     assert.match(await article.locator("#adskip-widget .message").innerText(), /Bắt đầu từ link/);
     checks.push("Userscript: bare Tech8s article gives an actionable manual state");
+    const manual = await context.newPage(); await goto(manual, manualUrl);
+    await waitForPanel(manual, "Cần thao tác trên trang");
+    await manual.getByRole("button", { name: "Hoàn tất thao tác", exact: true }).click();
+    await manual.locator("#adskip-widget").getByRole("button", { name: "Tiếp tục kiểm tra", exact: true }).click();
+    await waitForPanel(manual, "Đã tìm được trang đích");
+    assert.equal(await manual.locator("#adskip-widget .destination").getAttribute("href"), target);
+    checks.push("Userscript: manual continuation reads the fresh DOM after user action");
     assert.deepEqual(errors, []);
     await context.close();
     const report = { checkedAt: new Date().toISOString(), mode: "Chromium with intercepted fixtures and GM API shim; not an installed Tampermonkey test", checks, errors };
